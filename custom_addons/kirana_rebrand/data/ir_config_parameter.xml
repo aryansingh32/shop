@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Kirana Rebranding — System parameter data.
+
+    Sets the brand name in ir.config_parameter so it can be read by:
+      - rebrand.js via the meta tag injected by views/assets.xml
+      - Any Python code that needs to reference the brand name
+
+    To rename the brand: update kirana.brand_name here and reinstall the module.
+    In production this can also be set via Settings → Technical → Parameters.
+-->
+<odoo>
+    <data noupdate="0">
+        <!-- Brand name: used in page titles, email subjects, print headers -->
+        <record id="kirana_brand_name" model="ir.config_parameter">
+            <field name="key">kirana.brand_name</field>
+            <field name="value">Kirana</field>
+        </record>
+
+        <!-- Base domain: used for constructing shop URLs in email templates -->
+        <record id="kirana_base_domain" model="ir.config_parameter">
+            <field name="key">kirana.base_domain</field>
+            <field name="value">kirana.dev</field>
+        </record>
+    </data>
+</odoo>

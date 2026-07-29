@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Kirana Rebranding — Asset injection template.
+
+    Injects a <meta> tag into every Odoo web page containing the brand name
+    read from ir.config_parameter. The rebrand.js file reads this meta tag
+    so brand name is NOT hardcoded in JavaScript.
+
+    This is the only way to pass server-side Python config values to static JS
+    without custom controllers in Odoo.
+-->
+<odoo>
+    <template id="kirana_rebrand_meta" inherit_id="web.layout" name="Kirana: inject brand meta">
+        <xpath expr="//head" position="inside">
+            <t t-set="brand_name" t-value="request.env['ir.config_parameter'].sudo().get_param('kirana.brand_name', 'Kirana')"/>
+            <meta name="kirana:brand" t-att-content="brand_name"/>
+        </xpath>
+    </template>
+</odoo>

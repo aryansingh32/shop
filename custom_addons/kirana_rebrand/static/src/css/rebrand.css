@@ -1,0 +1,123 @@
+/**
+ * Kirana Rebranding — Full White-Label CSS
+ *
+ * Goal: The shop owner must NEVER see any Odoo branding, navigation, or
+ * structural chrome. They only see the functional content of the app
+ * (Inventory list, POS terminal, etc.) — nothing else.
+ *
+ * This CSS hides the entire Odoo top navigation bar, the left menu sidebar,
+ * the "My Company" breadcrumb area, and all Odoo-branded visual elements.
+ *
+ * Our portal wraps Odoo in a full-screen iframe that already provides the
+ * "← Dashboard" back button at the top. So Odoo's own header is redundant.
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. HIDE THE ENTIRE ODOO TOP NAVIGATION BAR
+   The main navbar contains: hamburger menu, logo, "Odoo" text, app switcher,
+   user avatar, company name, debug icon. None of this should be visible.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.o_main_navbar,
+.o_navbar,
+nav.o_main_navbar {
+    display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. MAKE THE ACTION AREA FILL THE FULL SCREEN
+   Since the navbar is hidden (normally ~56px tall), we reclaim that space.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.o_action_manager,
+.o_web_client > .o_action_manager,
+.o_home_menu,
+.o_main_content {
+    top: 0 !important;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+    height: 100% !important;
+}
+
+.o_web_client {
+    padding-top: 0 !important;
+}
+
+/* Odoo 18 uses CSS custom properties for nav height */
+:root {
+    --o-navbar-height: 0px !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. HIDE THE HOME MENU / APP SWITCHER OVERLAY
+   When navigating between Odoo apps, the home menu tile grid shows.
+   Users should never see this — they go back to our portal dashboard instead.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.o_home_menu_container,
+.o_home_menu,
+.o_home_menu_backdrop {
+    display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. HIDE ODOO LOGO & BRANDING MARKS
+   Belt-and-suspenders for any logo that survived the navbar hide above.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.o_home_menu_logo,
+.o_menu_brand > img,
+.o_menu_brand > .o_logo,
+img[src*="/web/static/img/logo"],
+img[src*="odoo-logo"],
+img[alt="Odoo"],
+img[title="Odoo"],
+.o_web_client img.o_logo {
+    display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. HIDE "POWERED BY ODOO" & ODOO LINKS IN FOOTERS / DIALOGS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.o_powered_by_odoo,
+[data-name="powered_by_odoo"],
+footer a[href*="odoo.com"],
+a[href*="odoo.com"],
+a[href*="runbot.odoo.com"],
+a[href*="odoo.sh"] {
+    display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. HIDE ODOO SETTINGS BRANDING IN ABOUT / GENERAL SETTINGS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.o_about_dialog .o_odoo_branding,
+.o_dialog_body img[src*="odoo"],
+.o_settings_container .o_setting_box:has(.o_doc_link[href*="odoo.com"]),
+.o_odoo_version_info {
+    display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. POS-SPECIFIC DEBRANDING
+   The POS screen has its own layout. Hide any Odoo marks in the POS UI.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pos-receipt .powered-by-odoo,
+.pos-receipt .pos-receipt-logo img[src*="odoo"],
+.pos-sale-details img[src*="odoo"] {
+    display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   8. HIDE DEBUG / DEVELOPER MENU TRIGGERS
+   Users should never accidentally activate Odoo developer mode.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.o_debug_manager,
+.o_debug_manager_button {
+    display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   9. CLEAN UP SPACING LEFT BY HIDDEN ELEMENTS
+   After hiding the navbar, ensure the content is properly flush.
+   ═══════════════════════════════════════════════════════════════════════════ */
+body.o_web_client,
+.o_web_client body {
+    padding-top: 0 !important;
+}
