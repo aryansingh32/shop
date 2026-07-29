@@ -42,9 +42,10 @@
             'kirana_rebrand/static/src/css/rebrand.css',
             'kirana_rebrand/static/src/js/rebrand.js',
         ],
-        # Also apply to POS UI (separate asset bundle in Odoo 18)
         'point_of_sale.assets_prod': [
             'kirana_rebrand/static/src/css/rebrand.css',
+            'kirana_rebrand/static/src/js/rebrand.js',
+            'kirana_rebrand/static/src/xml/rebrand.xml',
         ],
     },
     'installable': True,
