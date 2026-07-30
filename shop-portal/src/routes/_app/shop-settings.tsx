@@ -69,60 +69,65 @@ function ShopSettingsPage() {
 
   return (
     <div style={{ maxWidth: "600px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "2rem" }}>
-        <Building2 size={22} style={{ color: "var(--color-primary)" }} />
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--color-foreground)", letterSpacing: "-0.02em" }}>
-          Shop settings
-        </h1>
+      <div className="page-header">
+        <h1>Shop settings</h1>
       </div>
 
       <form
         onSubmit={(e) => { e.preventDefault(); mut.mutate(); }}
         style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
       >
-        <div className="card" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-          <h2 style={{ fontWeight: 600, fontSize: "0.875rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-foreground-subtle)" }}>
-            Business details
-          </h2>
-
-          <div>
-            <label className="label" htmlFor="shop-name">Business name</label>
-            <input id="shop-name" className="field" value={name} onChange={(e) => setName(e.target.value)} required />
+        <div className="section-card">
+          <div className="section-card-header">
+            <div>
+              <h2>Business details</h2>
+              <p>Basic information about your shop</p>
+            </div>
           </div>
+          <div className="section-card-body" style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+            <div>
+              <label className="label" htmlFor="shop-name">Business name</label>
+              <input id="shop-name" className="field" value={name} onChange={(e) => setName(e.target.value)} required />
+            </div>
 
-          <div>
-            <label className="label" htmlFor="shop-vat">GSTIN</label>
-            <input id="shop-vat" className="field" value={vat} onChange={(e) => setVat(e.target.value)} placeholder="22AAAAA0000A1Z5" maxLength={20} style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.05em" }} />
-            <p style={{ fontSize: "0.8rem", color: "var(--color-foreground-subtle)", marginTop: "0.375rem" }}>
-              Appears on invoices and receipts.
-            </p>
+            <div>
+              <label className="label" htmlFor="shop-vat">GSTIN</label>
+              <input id="shop-vat" className="field" value={vat} onChange={(e) => setVat(e.target.value)} placeholder="22AAAAA0000A1Z5" maxLength={20} style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.05em" }} />
+              <p style={{ fontSize: "0.8rem", color: "var(--color-foreground-subtle)", marginTop: "0.375rem" }}>
+                Appears on invoices and receipts.
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="card" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-          <h2 style={{ fontWeight: 600, fontSize: "0.875rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-foreground-subtle)" }}>
-            Contact & address
-          </h2>
-
-          <div>
-            <label className="label" htmlFor="shop-street">Street address</label>
-            <input id="shop-street" className="field" value={street} onChange={(e) => setStreet(e.target.value)} placeholder="123, MG Road" />
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.875rem" }}>
+        <div className="section-card">
+          <div className="section-card-header">
             <div>
-              <label className="label" htmlFor="shop-city">City</label>
-              <input id="shop-city" className="field" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Mumbai" />
-            </div>
-            <div>
-              <label className="label" htmlFor="shop-phone">Phone</label>
-              <input id="shop-phone" className="field" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" />
+              <h2>Contact & address</h2>
+              <p>Where your customers can reach you</p>
             </div>
           </div>
+          <div className="section-card-body" style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+            <div>
+              <label className="label" htmlFor="shop-street">Street address</label>
+              <input id="shop-street" className="field" value={street} onChange={(e) => setStreet(e.target.value)} placeholder="123, MG Road" />
+            </div>
 
-          <div>
-            <label className="label" htmlFor="shop-email">Business email</label>
-            <input id="shop-email" className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="shop@yourbusiness.com" />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.875rem" }}>
+              <div>
+                <label className="label" htmlFor="shop-city">City</label>
+                <input id="shop-city" className="field" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Mumbai" />
+              </div>
+              <div>
+                <label className="label" htmlFor="shop-phone">Phone</label>
+                <input id="shop-phone" className="field" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" />
+              </div>
+            </div>
+
+            <div>
+              <label className="label" htmlFor="shop-email">Business email</label>
+              <input id="shop-email" className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="shop@yourbusiness.com" />
+            </div>
           </div>
         </div>
 

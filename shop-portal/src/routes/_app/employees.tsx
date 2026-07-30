@@ -65,12 +65,10 @@ function EmployeesPage() {
 
   return (
     <div style={{ maxWidth: "760px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "2rem", gap: "1rem", flexWrap: "wrap" }}>
+      <div className="page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", marginBottom: "0" }}>
         <div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--color-foreground)", letterSpacing: "-0.02em" }}>
-            Team
-          </h1>
-          <p style={{ marginTop: "0.375rem", fontSize: "0.9375rem", color: "var(--color-foreground-muted)" }}>
+          <h1>Team</h1>
+          <p>
             {active.length} active staff member{active.length !== 1 ? "s" : ""}
           </p>
         </div>
@@ -80,26 +78,19 @@ function EmployeesPage() {
         </button>
       </div>
 
-      {/* Active employees */}
-      {active.length === 0 && inactive.length === 0 ? (
-        <EmptyTeam onAdd={() => setShowForm(true)} />
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
-          {active.map((emp) => (
-            <EmployeeRow
-              key={emp.id}
-              emp={emp}
-              allowedAppSlugs={session.allowedAppSlugs}
-              onEdit={() => { setEditingEmployee(emp); setShowForm(true); }}
-            />
-          ))}
-
-          {inactive.length > 0 && (
-            <>
-              <div style={{ marginTop: "1.5rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: 600, color: "var(--color-foreground-subtle)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                Inactive
+      <div style={{ marginTop: "2rem" }}>
+        {active.length === 0 && inactive.length === 0 ? (
+          <EmptyTeam onAdd={() => setShowForm(true)} />
+        ) : (
+          <div className="section-card">
+            <div className="section-card-header">
+              <div>
+                <h2>Staff directory</h2>
+                <p>Manage access for your team</p>
               </div>
-              {inactive.map((emp) => (
+            </div>
+            <div className="section-card-body" style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+              {active.map((emp) => (
                 <EmployeeRow
                   key={emp.id}
                   emp={emp}
@@ -107,10 +98,26 @@ function EmployeesPage() {
                   onEdit={() => { setEditingEmployee(emp); setShowForm(true); }}
                 />
               ))}
-            </>
-          )}
-        </div>
-      )}
+
+              {inactive.length > 0 && (
+                <>
+                  <div style={{ marginTop: "1.5rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: 600, color: "var(--color-foreground-subtle)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    Inactive
+                  </div>
+                  {inactive.map((emp) => (
+                    <EmployeeRow
+                      key={emp.id}
+                      emp={emp}
+                      allowedAppSlugs={session.allowedAppSlugs}
+                      onEdit={() => { setEditingEmployee(emp); setShowForm(true); }}
+                    />
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Slide-over form */}
       {showForm && (
@@ -449,25 +456,14 @@ function EmployeeForm({
 
 function EmptyTeam({ onAdd }: { onAdd: () => void }) {
   return (
-    <div
-      style={{
-        border: "2px dashed var(--color-border-strong)",
-        borderRadius: "var(--radius-2xl)",
-        padding: "4rem 2rem",
-        textAlign: "center",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "0.875rem",
-      }}
-    >
-      <Users size={40} style={{ color: "var(--color-foreground-subtle)" }} />
-      <div>
-        <p style={{ fontSize: "1rem", fontWeight: 600, color: "var(--color-foreground)" }}>No team members yet</p>
-        <p style={{ fontSize: "0.875rem", color: "var(--color-foreground-muted)", marginTop: "0.375rem" }}>
-          Add your first staff member to give them access to the shop apps.
-        </p>
+    <div className="empty-state">
+      <div className="empty-state-icon">
+        <Users size={24} />
       </div>
+      <h3>No team members yet</h3>
+      <p>
+        Add your first staff member to give them access to the shop apps.
+      </p>
       <button className="btn-primary" onClick={onAdd} style={{ marginTop: "0.5rem" }}>
         <Plus size={17} />
         Add first team member

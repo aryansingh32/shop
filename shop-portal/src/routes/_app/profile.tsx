@@ -23,49 +23,42 @@ function ProfilePage() {
 
   return (
     <div style={{ maxWidth: "560px" }}>
-      <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--color-foreground)", letterSpacing: "-0.02em", marginBottom: "2rem" }}>
-        My profile
-      </h1>
-
+      <div className="page-header">
+        <h1>My profile</h1>
+      </div>
       {/* Account info (read-only) */}
-      <div className="card" style={{ padding: "1.5rem", marginBottom: "1.25rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.25rem" }}>
-          <div
-            style={{
-              width: "52px",
-              height: "52px",
-              borderRadius: "9999px",
-              background: "var(--color-primary-soft)",
-              color: "var(--color-primary)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "1.25rem",
-              fontWeight: 700,
-              flexShrink: 0,
-            }}
-          >
-            {session.userName.charAt(0).toUpperCase()}
-          </div>
+      <div className="section-card">
+        <div className="section-card-header">
           <div>
-            <div style={{ fontWeight: 600, fontSize: "1.0625rem", color: "var(--color-foreground)" }}>{session.userName}</div>
-            <div style={{ fontSize: "0.875rem", color: "var(--color-foreground-muted)", marginTop: "0.125rem" }}>{session.userLogin}</div>
+            <h2>Account details</h2>
+            <p>Your personal information</p>
           </div>
         </div>
-        <div
-          style={{
-            background: "var(--color-accent)",
-            borderRadius: "var(--radius-lg)",
-            padding: "0.625rem 1rem",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-          }}
-        >
-          <User size={14} style={{ color: "var(--color-primary)" }} />
-          <span style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--color-accent-foreground)" }}>
-            {session.isOwner ? "Shop owner" : "Staff member"}
-          </span>
+        <div className="section-card-body">
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.25rem" }}>
+            <div className="avatar" style={{ width: "72px", height: "72px", fontSize: "1.75rem" }}>
+              {session.userName.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: "1.0625rem", color: "var(--color-foreground)" }}>{session.userName}</div>
+              <div style={{ fontSize: "0.875rem", color: "var(--color-foreground-muted)", marginTop: "0.125rem" }}>{session.userLogin}</div>
+            </div>
+          </div>
+          <div
+            style={{
+              background: "var(--color-accent)",
+              borderRadius: "var(--radius-lg)",
+              padding: "0.625rem 1rem",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <User size={14} style={{ color: "var(--color-primary)" }} />
+            <span style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--color-accent-foreground)" }}>
+              {session.isOwner ? "Shop owner" : "Staff member"}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -98,28 +91,32 @@ function ChangePasswordCard() {
   });
 
   return (
-    <div className="card" style={{ padding: "1.5rem" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.25rem" }}>
-        <KeyRound size={18} style={{ color: "var(--color-primary)" }} />
-        <h2 style={{ fontWeight: 600, fontSize: "1rem", color: "var(--color-foreground)" }}>Change password</h2>
+    <div className="section-card">
+      <div className="section-card-header">
+        <div>
+          <h2>Change password</h2>
+          <p>Update your login credentials</p>
+        </div>
       </div>
-      <form
-        onSubmit={(e) => { e.preventDefault(); mut.mutate(); }}
-        style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
-      >
-        <div>
-          <label className="label" htmlFor="new-pw">New password</label>
-          <input id="new-pw" type="password" className="field" required minLength={6} value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="At least 6 characters" />
-        </div>
-        <div>
-          <label className="label" htmlFor="confirm-pw">Confirm new password</label>
-          <input id="confirm-pw" type="password" className="field" required value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Repeat your new password" />
-        </div>
-        <button type="submit" className="btn-primary" disabled={mut.isPending || done} style={{ alignSelf: "flex-start" }}>
-          {mut.isPending ? <Loader2 size={16} className="animate-spin" /> : done ? <Check size={16} /> : null}
-          {done ? "Changed!" : "Change password"}
-        </button>
-      </form>
+      <div className="section-card-body">
+        <form
+          onSubmit={(e) => { e.preventDefault(); mut.mutate(); }}
+          style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+        >
+          <div>
+            <label className="label" htmlFor="new-pw">New password</label>
+            <input id="new-pw" type="password" className="field" required minLength={6} value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="At least 6 characters" />
+          </div>
+          <div>
+            <label className="label" htmlFor="confirm-pw">Confirm new password</label>
+            <input id="confirm-pw" type="password" className="field" required value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Repeat your new password" />
+          </div>
+          <button type="submit" className="btn-primary" disabled={mut.isPending || done} style={{ alignSelf: "flex-start" }}>
+            {mut.isPending ? <Loader2 size={16} className="animate-spin" /> : done ? <Check size={16} /> : null}
+            {done ? "Changed!" : "Change password"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

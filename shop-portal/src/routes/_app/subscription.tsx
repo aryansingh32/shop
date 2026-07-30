@@ -40,34 +40,36 @@ function SubscriptionPage() {
 
   return (
     <div style={{ maxWidth: "560px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "2rem" }}>
-        <CreditCard size={22} style={{ color: "var(--color-primary)" }} />
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--color-foreground)", letterSpacing: "-0.02em" }}>
-          Subscription
-        </h1>
+      <div className="page-header">
+        <h1>Subscription</h1>
       </div>
 
       {/* Current plan card */}
-      <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+      <div className="section-card">
+        <div className="section-card-header">
           <div>
-            <div style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-foreground-subtle)", marginBottom: "0.375rem" }}>
-              Current plan
-            </div>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--color-foreground)", letterSpacing: "-0.02em" }}>
-              {plan?.name ?? "No plan"}
-            </div>
-            {plan?.description && (
-              <div style={{ fontSize: "0.9rem", color: "var(--color-foreground-muted)", marginTop: "0.375rem" }}>
-                {plan.description}
-              </div>
-            )}
+            <h2>Current plan</h2>
+            <p>Your subscription details and billing</p>
           </div>
-          <span className={`badge ${status.badgeClass}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", padding: "0.375rem 0.875rem" }}>
+          <span className={`badge ${status.badgeClass}`} style={{ display: "flex", alignItems: "center", gap: "0.375rem", padding: "0.375rem 0.875rem", fontSize: "0.875rem" }}>
             {status.icon}
             {status.label}
           </span>
         </div>
+        
+        <div className="section-card-body">
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--color-foreground)", letterSpacing: "-0.02em" }}>
+                {plan?.name ?? "No plan"}
+              </div>
+              {plan?.description && (
+                <div style={{ fontSize: "0.9rem", color: "var(--color-foreground-muted)", marginTop: "0.375rem" }}>
+                  {plan.description}
+                </div>
+              )}
+            </div>
+          </div>
 
         {plan && (
           <div
@@ -97,34 +99,43 @@ function SubscriptionPage() {
           </div>
         )}
 
-        {trialEndsAt && statusKey === "trial" && (
-          <div
-            style={{
-              marginTop: "1rem",
-              background: "var(--color-warning-soft)",
-              border: "1.5px solid oklch(0.85 0.1 75)",
-              borderRadius: "var(--radius-lg)",
-              padding: "0.875rem 1rem",
-              fontSize: "0.9rem",
-              color: "var(--color-foreground)",
-            }}
-          >
-            <strong>Trial ends</strong> on {new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "long", year: "numeric" }).format(new Date(trialEndsAt))}.
-          </div>
-        )}
+          {trialEndsAt && statusKey === "trial" && (
+            <div
+              style={{
+                marginTop: "1.25rem",
+                background: "var(--color-warning-soft)",
+                border: "2px solid oklch(0.85 0.1 75)",
+                borderRadius: "var(--radius-xl)",
+                padding: "1rem 1.25rem",
+                fontSize: "0.9375rem",
+                color: "var(--color-foreground)",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+              }}
+            >
+              <Clock size={20} style={{ color: "var(--color-warning)" }} />
+              <div>
+                <strong>Trial ends</strong> on {new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "long", year: "numeric" }).format(new Date(trialEndsAt))}. Upgrade to keep access.
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Contact sales CTA */}
       <div
-        className="card"
-        style={{ padding: "1.5rem", background: "var(--color-primary-soft)", border: "1.5px solid oklch(0.82 0.1 210)" }}
+        className="section-card"
+        style={{ background: "var(--color-primary-soft)", border: "1.5px solid oklch(0.82 0.1 210)", marginBottom: "0" }}
       >
-        <p style={{ fontSize: "0.9375rem", color: "var(--color-foreground)", marginBottom: "0.75rem", fontWeight: 500 }}>
-          Want to upgrade or change your plan?
-        </p>
-        <p style={{ fontSize: "0.875rem", color: "var(--color-foreground-muted)" }}>
-          Contact {BRAND_NAME} support to discuss plan changes, additional seats, or billing questions.
-        </p>
+        <div className="section-card-body">
+          <p style={{ fontSize: "0.9375rem", color: "var(--color-foreground)", marginBottom: "0.75rem", fontWeight: 600 }}>
+            Want to upgrade or change your plan?
+          </p>
+          <p style={{ fontSize: "0.875rem", color: "var(--color-foreground-muted)", margin: 0 }}>
+            Contact {BRAND_NAME} support to discuss plan changes, additional seats, or billing questions.
+          </p>
+        </div>
       </div>
     </div>
   );
