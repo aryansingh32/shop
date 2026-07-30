@@ -32,9 +32,10 @@
         at runtime so they can be changed without code modifications.
     """,
     'author': 'Kirana Platform',
-    'depends': ['web'],  # 'web' is always installed — safe dependency
+    'depends': ['web', 'point_of_sale'],  # point_of_sale required for pos_simplify.xml view inheritance
     'data': [
         'views/assets.xml',
+        'views/pos_simplify.xml',
         'data/ir_config_parameter.xml',
     ],
     'assets': {
@@ -42,10 +43,11 @@
             'kirana_rebrand/static/src/css/rebrand.css',
             'kirana_rebrand/static/src/js/rebrand.js',
         ],
+        # POS frontend bundle — separate from backend, loaded in the live POS session
         'point_of_sale.assets_prod': [
-            'kirana_rebrand/static/src/css/rebrand.css',
-            'kirana_rebrand/static/src/js/rebrand.js',
-            'kirana_rebrand/static/src/xml/rebrand.xml',
+            'kirana_rebrand/static/src/css/rebrand.css',  # branding CSS (debranding + POS simplification)
+            'kirana_rebrand/static/src/js/rebrand.js',   # title/favicon/text patcher
+            'kirana_rebrand/static/src/xml/rebrand.xml', # OWL component overrides (OdooLogo fix)
         ],
     },
     'installable': True,

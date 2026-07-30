@@ -1,12 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates id="template" xml:space="preserve">
-    <!-- Override the OdooLogo OWL component used in customer display and POS -->
-    <t t-name="kirana_rebrand.OdooLogo" t-inherit="point_of_sale.OdooLogo" t-inherit-mode="extension">
-        <xpath expr="//div" position="replace">
-            <!-- Replace the inline SVG with an empty div preserving original classes and styles to maintain layout -->
-            <div t-attf-class="{{ props.class }}" t-attf-style="{{ props.style }}">
-                <!-- Logo removed for white-labeling -->
-            </div>
+    <!--
+        Kirana Rebranding — OWL Template Overrides for Point of Sale.
+
+        FIX: Override the OdooLogo OWL component rendered in the customer-facing
+        display screen (customer_display.xml) and anywhere else in the POS UI.
+
+        HOW THIS WORKS:
+          - t-inherit-mode="extension" WITHOUT a t-name attribute modifies the
+            original point_of_sale.OdooLogo template in-place.
+          - Adding a t-name alongside extension mode would register a SEPARATE
+            template (the original would be unchanged — that was the Step 1 bug).
+          - We target //svg specifically (not //div) to remove only the Odoo logo
+            SVG while preserving the wrapping <div> with its props.class/style,
+            which keeps the component's layout footprint intact.
+
+        VERIFIED AGAINST:
+          addons/point_of_sale/static/src/app/generic_components/odoo_logo/odoo_logo.xml
+          The template is: <t t-name="point_of_sale.OdooLogo">
+                               <div t-attf-class=...><svg ...>...</svg></div>
+                           </t>
+          We replace the <svg> with nothing, leaving the wrapper <div>.
+    -->
+    <t t-inherit="point_of_sale.OdooLogo" t-inherit-mode="extension">
+        <xpath expr="//svg" position="replace">
+            <!-- Odoo logo SVG removed — white-label for Kirana platform -->
         </xpath>
     </t>
 </templates>

@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Kirana Platform — Point of Sale UI Simplification
+
+    This file hides Odoo POS configuration options that are irrelevant or
+    confusing for a single-counter retail shop operating in India with INR only.
+
+    IMPLEMENTATION APPROACH:
+      - Uses ir.ui.view inheritance (xpath + invisible="True") — NOT CSS.
+        CSS hiding is fragile for functional UI elements (the Step 1 OdooLogo
+        lesson: CSS-only hides can be bypassed or missed). View inheritance
+        is server-authoritative and survives browser refreshes.
+      - Groups-based restriction for the settings page (already gated by
+        point_of_sale.group_pos_manager in Odoo's native security.xml).
+
+    TWO-TIER MODEL:
+      - Shop Owner → base.group_system (admin) → inherits group_pos_manager
+        → sees the simplified (but functional) POS config surface.
+      - Employee/Cashier → group_pos_user only
+        → cannot reach POS configuration at all (gated by Odoo's native
+          group_pos_manager requirement on the settings form and config views).
+
+    WHAT IS HIDDEN AND WHY:
+
+    1. Restaurant Mode section
+       Entirely irrelevant to retail. Course management, table layout, bar tabs,
+       and kitchen screen are all food-service-only concepts that add noise.
+
+    2. Multi-employee PIN switching (module_pos_hr)
+       Not needed for single-counter operation. Employee access is managed via
+       the Kirana portal's Supabase groups (group_pos_user / group_pos_manager),
+       not Odoo's employee-PIN system. Exposing this would create a confusing
+       second access-control surface.
+
+    3. Pricelist selection (multiple_prices_setting)
+       Out of scope for basic retail. A small Indian kirana runs one price for
+       everyone. Pricelist switching at the counter adds complexity with no benefit.
+
+    4. Fiscal position flexible UI (flexible_taxes)
+       A single shop with one GSTIN does not need to select different fiscal
+       positions per transaction. The default fiscal position is pre-configured
+       at install time. IMPORTANT: We only hide the *UI for switching* between
+       fiscal positions — the default_fiscal_position_id field and GST calculation
+       remain fully functional in the background.
+
+    5. Connected Devices / IoT Box / Electronic Scale
+       Mobile/clothing retail has no scale. IoT box is irrelevant. Hiding this
+       entire block removes 4-5 confusing settings with zero functionality loss.
+
+    6. Loyalty program raw Odoo config (pos-loyalty)
+       The loyalty module will be surfaced properly in a later production-readiness
+       step with a guided setup flow. Exposing the raw Odoo config now would
+       lead to a half-configured state that confuses shop owners.
+
+    7. Preparation / Order Printer (pos_preparation_section)
+       Kitchen order printers are restaurant-specific. Not applicable to retail.
+
+    HOW TO REVERSE:
+      Set any <attribute name="invisible"> to False, or remove the xpath block.
+      Nothing is deleted from the underlying models. All hidden features remain
+      fully functional via direct model writes or ir.config_parameter if needed.
+-->
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         1. General Settings Page (Settings → Point of Sale)
+         Ref: point_of_sale.res_config_settings_view_form
+         Model: res.config.settings
+         Confirmed blocks from odoo-src-reference/addons/point_of_sale/views/
+                             res_config_settings_views.xml
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="kirana_pos_settings_simplify" model="ir.ui.view">
+        <field name="name">kirana.pos.settings.simplify</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="point_of_sale.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+
+            <!-- HIDE: Restaurant Mode block — irrelevant to retail -->
+            <!-- Source line: <block title="Restaurant Mode" id="restaurant_section"> -->
+            <xpath expr="//block[@id='restaurant_section']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+            <!-- HIDE: Multi-employee PIN switching — portal groups handle access -->
+            <!-- Source line: <setting id="multiple_employee_session" ...> -->
+            <xpath expr="//setting[@id='multiple_employee_session']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+            <!-- HIDE: Pricelist settings — single-price retail doesn't need this -->
+            <!-- Source line: <setting id="multiple_prices_setting" ...> -->
+            <xpath expr="//setting[@id='multiple_prices_setting']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+            <!-- HIDE: Fiscal position flexible switching UI.
+                 NOTE: This hides the "Flexible Taxes" setting (multiple fiscal positions
+                 at the counter), NOT the default fiscal position itself.
+                 The default_fiscal_position_id field in pos.config stays functional.
+                 GST calculation continues to work correctly through the pre-set default.
+                 Source line: <setting id="flexible_taxes" ...> -->
+            <xpath expr="//setting[@id='flexible_taxes']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+            <!-- HIDE: Connected Devices / IoT Box / Scale — not applicable to retail -->
+            <!-- Source line: <block title="Connected Devices" id="pos_connected_devices_section"> -->
+            <xpath expr="//block[@id='pos_connected_devices_section']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+            <!-- HIDE: Loyalty program raw config — will be surfaced properly later -->
+            <!-- Source line: <setting id="pos-loyalty" ...> -->
+            <xpath expr="//setting[@id='pos-loyalty']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+            <!-- HIDE: Preparation / Order Printer — restaurant-specific, not retail -->
+            <!-- Source line: <block title="Preparation" id="pos_preparation_section"> -->
+            <xpath expr="//block[@id='pos_preparation_section']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         2. Per-POS Configuration Form (Point of Sale → Configuration → POS)
+         Ref: point_of_sale.pos_config_view_form
+         Model: pos.config
+         Confirmed fields from odoo-src-reference/addons/point_of_sale/views/
+                             pos_config_view.xml
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="kirana_pos_config_form_simplify" model="ir.ui.view">
+        <field name="name">kirana.pos.config.form.simplify</field>
+        <field name="model">pos.config</field>
+        <field name="inherit_id" ref="point_of_sale.pos_config_view_form"/>
+        <field name="arch" type="xml">
+
+            <!-- HIDE: Employee PIN login on per-POS config form.
+                 Source line: <field name="module_pos_hr" .../>
+                 The portal manages employee access via Supabase + Odoo groups,
+                 making the PIN-based cashier switching redundant and confusing. -->
+            <xpath expr="//field[@name='module_pos_hr']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+            <!-- HIDE: Restaurant mode toggle on per-POS config form.
+                 Source line: <field name="module_pos_restaurant" .../>
+                 Retail shops should never see or accidentally enable this. -->
+            <xpath expr="//field[@name='module_pos_restaurant']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+            <!-- HIDE: Electronic scale field on per-POS config form.
+                 Source line: <field name="iface_electronic_scale" .../>
+                 Not applicable to mobile/clothing retail. -->
+            <xpath expr="//field[@name='iface_electronic_scale']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

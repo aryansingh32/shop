@@ -121,3 +121,44 @@ body.o_web_client,
 .o_web_client body {
     padding-top: 0 !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   10. POS LIVE SESSION SIMPLIFICATION — COUNTER SCREEN
+   Hides UI elements that are irrelevant to single-counter retail (India/INR).
+
+   WHY CSS HERE (not server-side view inheritance):
+   The live POS session is a single-page OWL app. Once the session is open,
+   backend ir.ui.view records don't affect what's rendered — only the OWL
+   component templates and their runtime state do. CSS targeting confirmed
+   class names from the real Odoo 18 source is the correct tool for hiding
+   specific buttons in the running POS without modifying POS JS/OWL logic.
+
+   CLASS NAMES VERIFIED AGAINST:
+     addons/point_of_sale/static/src/app/screens/product_screen/
+       control_buttons/control_buttons.xml
+
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* HIDE: Pricelist selection button in the "More" control actions popup.
+   Single-price retail shop has no need to switch pricelists per transaction.
+   Source: <button class="o_pricelist_button"> in control_buttons.xml */
+.o_pricelist_button {
+    display: none !important;
+}
+
+/* HIDE: Fiscal position button in the "More" control actions popup.
+   Single-GSTIN shop uses the pre-configured default fiscal position.
+   Hiding this prevents cashiers from accidentally switching tax regimes.
+   Note: GST still calculates correctly — the *default* fiscal position is
+   applied automatically; we are only hiding the per-sale override button.
+   Source: <button class="o_fiscal_position_button"> in control_buttons.xml */
+.o_fiscal_position_button {
+    display: none !important;
+}
+
+/* HIDE: Scale screen trigger — electronic scale not used in retail/clothing.
+   Source: scale_screen is triggered via a button that references the scale service. */
+.o_scale_button {
+    display: none !important;
+}
+
