@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Kirana Platform — Products Screen Simplification
+
+    Destination: Inventory → Products (product.template list + form view).
+    The portal routes the "Stock" app card to /odoo/inventory/products, which
+    is Odoo's product template list under the Inventory module (action:
+    stock.product_template_action_product). This is the correct screen for
+    shop owners to view and manage the products they sell and their stock levels.
+
+    This file hides the fields and tabs that belong to Odoo's warehouse/logistics
+    model (routes, valuation, putaway rules, reordering rules, vendor/purchase info,
+    lot/serial tracking) — none of which a single-counter retail shop needs to
+    see or configure.
+
+    WHAT IS KEPT (visible to shop owners):
+      - Product name, image
+      - Sale price (list_price)
+      - Barcode (for scanning at POS)
+      - Internal reference / SKU (default_code)
+      - Product category (categ_id)
+      - On-hand quantity button (qty_available stat button)
+      - "Update Quantity" button (for adding stock — simplest stock adjustment)
+      - Product type (storable/consumable/service)
+      - Tax (for GST-correct pricing)
+
+    WHAT IS HIDDEN AND WHY:
+
+    1. Operations tab (route_ids, putaway rules)
+       Routes (Buy, Manufacture, Resupply) are for multi-warehouse setups.
+       A single-counter shop has one stock location. Route assignment adds zero
+       value and substantial confusion.
+
+    2. Traceability (lot/serial number tracking)
+       Not applicable to clothing/mobile retail — no need to track individual units.
+
+    3. Inventory tab — description notes for receipts/deliveries
+       Internal warehouse transfer notes. Never seen by shop staff.
+
+    4. "Responsible" field (responsible_id)
+       An internal stock warehouse assignment. Irrelevant in single-user context.
+
+    5. Purchase tab (vendor/supplier info, lead times)
+       Purchase ordering is a separate workflow. This tab is only meaningful when
+       the Purchase module is enabled AND the shop has configured suppliers.
+       The tab will still be visible if the Purchase module is installed (its
+       own module handles that), but the route_ids within it are hidden.
+
+    6. Forecasted quantity stat button
+       The "Forecasted" quantity is a multi-warehouse planning concept based on
+       pending deliveries and receipts. A kirana shop only needs "On Hand".
+
+    HOW TO REVERSE:
+      Set any <attribute name="invisible"> to False, or remove the xpath block.
+      Nothing is deleted from the underlying models. All hidden features remain
+      fully functional via direct model writes or ir.config_parameter if needed.
+-->
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         1. Product Template FORM view (Inventory → Products → open one product)
+         Ref: stock.product_template_form_view_procurement_button
+              (inherits product.product_template_form_view via stock)
+         Model: product.template
+         Confirmed from odoo-src-reference/addons/stock/views/product_views.xml
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="kirana_product_form_simplify" model="ir.ui.view">
+        <field name="name">kirana.product.template.form.simplify</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="stock.product_template_form_view_procurement_button"/>
+        <field name="arch" type="xml">
+
+            <!-- HIDE: "Forecasted" stat button — multi-warehouse planning concept.
+                 Shop owners only need "On Hand" (qty_available), not forecast.
+                 Source line: <button name="action_product_tmpl_forecast_report"> in
+                              stock/views/product_views.xml -->
+            <xpath expr="//button[@name='action_product_tmpl_forecast_report']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+            <!-- HIDE: "Responsible" field — internal stock assignment, not relevant.
+                 Source line: <field name="responsible_id" ... groups="stock.group_stock_user">
+                              in stock/views/product_views.xml -->
+            <xpath expr="//field[@name='responsible_id'][@groups='stock.group_stock_user']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         2. Product Template FORM view — Operations group (route_ids, putaway rules)
+         Ref: stock.view_template_property_form
+              (inherits product.product_template_form_view)
+         Model: product.template
+         Confirmed from odoo-src-reference/addons/stock/views/product_views.xml
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="kirana_product_operations_simplify" model="ir.ui.view">
+        <field name="name">kirana.product.operations.simplify</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="stock.view_template_property_form"/>
+        <field name="arch" type="xml">
+
+            <!-- HIDE: Operations group (routes, putaway diagram button).
+                 This is the entire "Operations" group added by the stock module
+                 to the product form, containing route_ids (Buy/Manufacture/etc.)
+                 and the "View Diagram" link. Irrelevant to single-location retail.
+                 Source: <group string="Operations" name="operations"> in
+                         stock/views/product_views.xml -->
+            <xpath expr="//group[@name='operations']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+            <!-- HIDE: Inventory tab description fields (receipt/delivery/transfer notes).
+                 These are warehouse transfer notes for multi-step logistics.
+                 Source: <page name="inventory"> content in view_template_property_form -->
+            <xpath expr="//page[@name='inventory']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         3. Product Template LIST view — hide less relevant columns
+         Ref: stock.view_stock_product_template_tree
+              (inherits product.product_template_tree_view)
+         Model: product.template
+         Confirmed from odoo-src-reference/addons/stock/views/product_views.xml
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="kirana_product_list_simplify" model="ir.ui.view">
+        <field name="name">kirana.product.template.list.simplify</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="stock.view_stock_product_template_tree"/>
+        <field name="arch" type="xml">
+
+            <!-- HIDE: "Forecasted" quantity column — multi-warehouse planning.
+                 "On Hand" (qty_available) is already shown and is sufficient.
+                 Source: <field name="virtual_available"> in view_stock_product_template_tree -->
+            <xpath expr="//field[@name='virtual_available']" position="attributes">
+                <attribute name="invisible">True</attribute>
+                <attribute name="optional">hide</attribute>
+            </xpath>
+
+            <!-- HIDE: "Responsible" column — internal stock assignment.
+                 Source: <field name="responsible_id"> in view_stock_product_template_tree -->
+            <xpath expr="//field[@name='responsible_id']" position="attributes">
+                <attribute name="invisible">True</attribute>
+                <attribute name="optional">hide</attribute>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

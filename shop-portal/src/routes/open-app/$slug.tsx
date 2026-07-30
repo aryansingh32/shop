@@ -19,6 +19,7 @@ import { ArrowLeft, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { getSessionFn } from "@/lib/auth.functions";
 import { APP_ODOO_PATHS } from "@/lib/config";
 import { BRAND_NAME } from "@/lib/config";
+import { getPosConfigId } from "@/lib/odoo";
 
 // ── Styles to inject into the Odoo iframe ─────────────────────────────────
 // This hides all Odoo chrome so the shop owner only sees the app content.
@@ -53,6 +54,18 @@ const ODOO_HIDE_CHROME_CSS = `
   /* Hide Settings → About → Odoo version info */
   .o_about_dialog .o_odoo_branding, .o_odoo_version_info,
   .o_dialog_body img[src*="odoo"] { display: none !important; }
+
+  /* Hide chatter / messaging panel (mail.thread mixin — present on most forms).
+     This mirrors the global rule in kirana_rebrand/static/src/css/rebrand.css §11.
+     Belt-and-suspenders: applied here at runtime before the addon CSS loads. */
+  .o-mail-Chatter, .o-mail-ChatterPanel,
+  .o_chatter, .o_chatter_container, .o_FormRenderer_chatterContainer,
+  .o-mail-Thread, .o-mail-MessageList,
+  .o-mail-ActivityList, .o_Activities,
+  .o-mail-Chatter-topbar, .o_chatter_topbar { display: none !important; }
+  /* Reclaim width when chatter is hidden */
+  .o_form_view .o_form_sheet_bg { padding-right: 0 !important; }
+  .o_form_view .o_form_sheet { max-width: 100% !important; }
 `;
 
 // ── Route ──────────────────────────────────────────────────────────────────
@@ -73,8 +86,29 @@ export const Route = createFileRoute("/open-app/$slug")({
   loader: async ({ params }) => {
     const session = await getSessionFn();
     if (!session) throw redirect({ to: "/login" });
-    const odooPath = APP_ODOO_PATHS[params.slug]!;
-    return { session, odooPath };
+    const db = encodeURIComponent(session.odooDb);
+    const basePath = APP_ODOO_PATHS[params.slug]!;
+
+    let iframeSrc: string;
+    if (params.slug === "pos") {
+      // POS: resolve the pos.config ID so we can open the session directly.
+      // /pos/ui?config_id=<id>&db=<db> skips the onboarding wizard and routes
+      // straight to the checkout product grid.
+      // Without config_id, Odoo may redirect to the onboarding wizard or Discuss.
+      const configId = await getPosConfigId(session.odooDb);
+      if (configId) {
+        iframeSrc = `${basePath}?config_id=${configId}&db=${db}`;
+      } else {
+        // Fallback: no config yet — open /pos/ui with db only.
+        // The onboarding wizard will appear, but that's better than Discuss/Inbox.
+        iframeSrc = `${basePath}?db=${db}`;
+      }
+    } else {
+      // All other apps: standard /odoo/<path>?db=<db> URL
+      iframeSrc = `${basePath}?db=${db}`;
+    }
+
+    return { session, iframeSrc };
   },
   component: OpenAppPage,
 });
@@ -83,15 +117,14 @@ export const Route = createFileRoute("/open-app/$slug")({
 
 function OpenAppPage() {
   const { slug } = Route.useParams();
-  const { session, odooPath } = Route.useLoaderData();
+  const { iframeSrc } = Route.useLoaderData();
   const navigate = useNavigate();
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  // Append db query param so Odoo knows which database to serve
-  const iframeSrc = `${odooPath}?db=${encodeURIComponent(session.odooDb)}`;
+  // iframeSrc is pre-built by the loader (includes db + config_id for POS)
 
   function injectChromeHidingStyles() {
     try {

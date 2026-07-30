@@ -162,3 +162,54 @@ body.o_web_client,
     display: none !important;
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   11. HIDE THE CHATTER / MESSAGING PANEL — GLOBAL
+   The chatter panel (Send message / Log note / Activities / message log)
+   comes from Odoo's mail.thread mixin and appears by default on virtually
+   every business document form (Inventory, Products, Receipts, POS, etc.).
+
+   Shop owners should never see Odoo's internal collaboration/audit tool —
+   it's an ERP concept that's confusing and irrelevant to a retail shop.
+
+   This is a GLOBAL hide applied once here rather than per-model/per-screen,
+   which would require endlessly chasing new instances as more apps are added.
+
+   CLASS NAMES VERIFIED AGAINST:
+     addons/mail/static/src/core/web/chatter.xml          (.o-mail-Chatter)
+     addons/mail/static/src/core/web/chatter_panel.xml    (.o-mail-ChatterPanel)
+     addons/mail/views/mail_message_views.xml             (.o_chatter_container)
+
+   WHY CSS (not view xpath here):
+     The chatter is rendered by the mail OWL component after the main form loads.
+     A single CSS rule here covers all models with zero maintenance overhead.
+     Using xpath would require one record per model that has mail.thread — dozens.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Odoo 18 OWL component — primary chatter container */
+.o-mail-Chatter,
+.o-mail-ChatterPanel,
+/* Older DOM class names (Odoo 16/17 compat) */
+.o_chatter,
+.o_chatter_container,
+.o_FormRenderer_chatterContainer,
+/* Thread / message list subcomponents */
+.o-mail-Thread,
+.o-mail-MessageList,
+/* Activities section in the chatter */
+.o-mail-ActivityList,
+.o_Activities,
+/* "Send message / Log note / Activities" action bar */
+.o-mail-Chatter-topbar,
+.o_chatter_topbar {
+    display: none !important;
+}
+
+/* When the chatter is hidden, the form content should use the full width.
+   Odoo sometimes shifts content into a narrower column when chatter is present. */
+.o_form_view .o_form_sheet_bg {
+    padding-right: 0 !important;
+}
+.o_form_view .o_form_sheet {
+    max-width: 100% !important;
+}

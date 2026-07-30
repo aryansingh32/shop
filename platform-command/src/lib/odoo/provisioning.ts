@@ -24,6 +24,7 @@ import {
   ADMIN_LOGIN,
   ADMIN_PASSWORD,
   odooCreateUser,
+  odooCreatePosConfig,
 } from "./client";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,19 +86,36 @@ export async function provisionShop(
     // This ensures our Super Admin Panel always has a backdoor to manage the shop via RPC.
     await odooDbCreate(dbName, ADMIN_LOGIN, ADMIN_PASSWORD, "en_IN", "IN");
 
-    // Step 2: Install plan modules
+    // Step 2: Install plan modules.
     // Always include:
     //   - l10n_in: India GST localization (mandatory for all Indian shops)
+    //   - barcodes: barcode scanning (core capability, included in all plans)
     // NOTE: kirana_rebrand is intentionally omitted until the custom module is built.
     //       Installing a non-existent module name will cause Odoo to error and fail the whole provisioning.
     const allModules = Array.from(
-      new Set(["l10n_in", ...moduleNames]),
+      new Set(["l10n_in", "barcodes", ...moduleNames]),
     );
     console.log(`[provisionShop] Installing modules on ${dbName}:`, allModules);
     await odooInstallModules(dbName, allModules);
 
     // Step 3: Create the shop owner's admin user account
     await odooCreateUser(dbName, adminEmail, adminPassword, "Shop Owner");
+
+    // Step 4: Create a ready-to-use pos.config so the POS can be opened directly.
+    // Without this, Odoo shows a first-run onboarding wizard to every new shop.
+    // We create a minimal but fully configured POS with sane Indian retail defaults.
+    // The portal opens POS via /pos/ui?config_id=<id> using this record's ID.
+    const posCreated = moduleNames.includes("point_of_sale");
+    if (posCreated) {
+      try {
+        await odooCreatePosConfig(dbName, "Shop Counter");
+        console.log(`[provisionShop] pos.config created on ${dbName}`);
+      } catch (posErr) {
+        // Non-fatal: log but don't fail provisioning if POS config creation fails.
+        // The shop owner will see the onboarding wizard but can still configure manually.
+        console.warn(`[provisionShop] Warning: pos.config creation failed on ${dbName}:`, posErr);
+      }
+    }
 
     const installed = await odooListInstalledModules(dbName);
     return {

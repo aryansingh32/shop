@@ -30,16 +30,31 @@ export const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
 
 /**
  * Map from Supabase app slug → Odoo URL path (Odoo 18 unified web client paths).
- * These are served under /odoo/* (proxied from our domain via Vite dev / Nginx prod).
+ * These are served under /odoo/* or /pos/* (proxied from our domain via Vite dev / Nginx prod).
+ *
+ * SPECIAL CASE — pos:
+ *   The value "/pos/ui" is a base path. The open-app route handler will:
+ *   1. Look up the shop's pos.config ID via Odoo RPC (odooGetPosConfigId)
+ *   2. Append ?config_id=<id>&db=<db> to open the correct session directly
+ *   3. Fall back to "/pos/ui" if no config_id can be resolved (will show Odoo's
+ *      own fallback, which for a db with a pos.config goes straight to POS)
+ *
+ * SPECIAL CASE — inventory:
+ *   Routes to /odoo/inventory/products — the Inventory → Products list view
+ *   (product.template with on-hand quantities). NOT the Inventory Overview
+ *   (warehouse operation types / receipts dashboard).
  *
  * To add a new app: add a row in the Supabase apps table AND add its path here.
  */
 export const APP_ODOO_PATHS: Record<string, string> = {
-  pos: "/odoo/point-of-sale",
-  inventory: "/odoo/inventory",
+  pos: "/pos/ui",
+  inventory: "/odoo/inventory/products",
   sales: "/odoo/sales",
   accounting: "/odoo/accounting",
   employees: "/odoo/employees",
+  purchase: "/odoo/purchase",
+  // barcodes: no standalone app screen — scanning capability is embedded in
+  // POS and Inventory. No path entry needed; the module just enables scanning.
 };
 
 /**
@@ -55,6 +70,9 @@ export const APP_ODOO_GROUPS: Record<string, string> = {
   sales: "sales_team.group_sale_salesman",
   accounting: "account.group_account_user",
   employees: "hr.group_hr_user",
+  // barcodes: no dedicated group — all internal users can scan barcodes.
+  // purchase: standard purchaser group.
+  purchase: "purchase.group_purchase_user",
 };
 
 /**

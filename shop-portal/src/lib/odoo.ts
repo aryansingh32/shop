@@ -354,6 +354,35 @@ export async function updateOdooCompany(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POS config lookup
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get the ID of the first active pos.config in a shop's Odoo database.
+ *
+ * Called by the open-app route handler when opening the POS app, to construct
+ * the direct POS URL: /pos/ui?config_id=<id>&db=<db>
+ *
+ * This bypasses the Odoo first-run onboarding wizard ("Choose your store type")
+ * which appears when hitting /pos/ui or /odoo/point-of-sale without a config_id.
+ *
+ * Returns null if no pos.config exists or if the lookup fails — the caller should
+ * fall back to /pos/ui (which at minimum won't redirect to Discuss/Inbox).
+ */
+export async function getPosConfigId(db: string): Promise<number | null> {
+  try {
+    const configs = await odooAdminExecute<{ id: number; name: string }[]>(
+      db, "pos.config", "search_read",
+      [[[["active", "=", true]]]],
+      { fields: ["id", "name"], limit: 1, order: "id asc" }
+    );
+    return configs.length > 0 ? configs[0].id : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Health check (used by error page)
 // ─────────────────────────────────────────────────────────────────────────────
 

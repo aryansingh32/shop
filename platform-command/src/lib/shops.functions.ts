@@ -310,11 +310,11 @@ async function runProvisioningAsync(
   const result = await provisionShop(odooDbName, ownerEmail, ownerPassword, moduleNames);
 
   if (result.success) {
-    await supabase
+    await supabaseAdmin
       .from("shops")
       .update({ provisioning_status: "live" })
       .eq("id", shopId);
-    await writeAudit(supabase, {
+    await writeAudit(supabaseAdmin, {
       actor,
       shopId,
       entityType: "shop",
@@ -323,14 +323,14 @@ async function runProvisioningAsync(
       after: { odoo_db_name: odooDbName, modules: result.installedModules },
     });
   } else {
-    await supabase
+    await supabaseAdmin
       .from("shops")
       .update({
         provisioning_status: "failed",
         provisioning_error: result.error,
       })
       .eq("id", shopId);
-    await writeAudit(supabase, {
+    await writeAudit(supabaseAdmin, {
       actor,
       shopId,
       entityType: "shop",

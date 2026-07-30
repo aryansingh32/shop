@@ -129,6 +129,18 @@ export default defineConfig({
         changeOrigin: true,
         configure: odooProxyConfigure,
       },
+      // Purchase module static assets
+      "/purchase": {
+        target: ODOO_TARGET,
+        changeOrigin: true,
+        configure: odooProxyConfigure,
+      },
+      // Barcodes module static assets
+      "/barcodes": {
+        target: ODOO_TARGET,
+        changeOrigin: true,
+        configure: odooProxyConfigure,
+      },
     },
   },
 });

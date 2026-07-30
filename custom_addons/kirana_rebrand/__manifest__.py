@@ -32,10 +32,11 @@
         at runtime so they can be changed without code modifications.
     """,
     'author': 'Kirana Platform',
-    'depends': ['web', 'point_of_sale'],  # point_of_sale required for pos_simplify.xml view inheritance
+    'depends': ['web', 'point_of_sale', 'stock'],  # point_of_sale for pos_simplify.xml, stock for products_simplify.xml
     'data': [
         'views/assets.xml',
         'views/pos_simplify.xml',
+        'views/products_simplify.xml',
         'data/ir_config_parameter.xml',
     ],
     'assets': {

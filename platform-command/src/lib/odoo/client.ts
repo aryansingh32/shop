@@ -459,3 +459,64 @@ export async function resetOdooUserPasswordPg(
   const cmd = `docker exec odoo python3 -c "${pythonCmd}"`;
   await execAsync(cmd);
 }
+
+/**
+ * Create a minimal pos.config record on a freshly provisioned database.
+ *
+ * This is required so shops can open the POS directly at /pos/ui?config_id=<id>
+ * without hitting Odoo's first-run onboarding wizard ("Choose your store type").
+ * The wizard appears when no pos.config exists — creating one here at provisioning
+ * time ensures the shop is always in a ready-to-use state.
+ *
+ * @param db   The shop's Odoo database name
+ * @param name Display name for the POS register (e.g. "Shop Counter")
+ * @returns    The ID of the created pos.config record
+ */
+export async function odooCreatePosConfig(
+  db: string,
+  name: string = "Shop Counter",
+): Promise<number> {
+  // Find the main company ID (always ID 1 for a single-company install)
+  const companies = await odooAdminExecute<{ id: number; name: string }[]>(
+    db, "res.company", "search_read",
+    [[["id", ">", 0]]],
+    { fields: ["id", "name"], limit: 1 }
+  );
+  const companyId = companies.length > 0 ? companies[0].id : 1;
+
+  // Find the Cash payment method — installed automatically with point_of_sale.
+  // Match on is_cash_count = true (the Odoo 18 boolean for cash-type methods).
+  const paymentMethods = await odooAdminExecute<{ id: number; name: string }[]>(
+    db, "pos.payment.method", "search_read",
+    [[["is_cash_count", "=", true]]],
+    { fields: ["id", "name"], limit: 1 }
+  );
+  const cashPaymentMethodIds: number[] = paymentMethods.length > 0
+    ? [paymentMethods[0].id]
+    : [];
+
+  // Create the POS config.
+  // Minimal values: only what's needed for a working checkout.
+  // Restaurant / multi-POS / IoT settings are explicitly disabled.
+  const configVals: Record<string, unknown> = {
+    name,
+    company_id: companyId,
+    // Retail shop: disable restaurant mode
+    module_pos_restaurant: false,
+    // Access managed via portal groups — no employee PIN switching
+    module_pos_hr: false,
+  };
+
+  if (cashPaymentMethodIds.length > 0) {
+    // many2many replace command: [(6, 0, [ids])]
+    configVals.payment_method_ids = [[6, 0, cashPaymentMethodIds]];
+  }
+
+  const configId = await odooAdminExecute<number>(
+    db, "pos.config", "create",
+    [configVals]
+  );
+
+  return configId;
+}
+
