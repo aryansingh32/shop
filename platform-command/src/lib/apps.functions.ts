@@ -10,6 +10,10 @@ const appSchema = z.object({
   icon: z.string().max(60).optional().nullable(),
   odoo_module_name: z.string().min(2).max(120),
   is_deprecated: z.boolean().default(false),
+  /** Feature 4 — Marketplace Price Transparency */
+  monthly_price_inr: z.number().min(0).default(0),
+  is_addon: z.boolean().default(false),
+  pricing_note: z.string().max(300).optional().nullable(),
 });
 
 export const listApps = createServerFn({ method: "GET" })
@@ -38,7 +42,7 @@ export const createApp = createServerFn({ method: "POST" })
   .inputValidator((raw: unknown) => appSchema.parse(raw))
   .handler(async ({ context, data }) => {
     const actor = await requireRole(context.supabase, context.userId, ["super_admin"]);
-    const { data: created, error } = await context.supabase.from("apps").insert(data).select().single();
+    const { data: created, error } = await context.supabase.from("apps").insert(data as any).select().single();
     if (error) throw error;
     await writeAudit(context.supabase, {
       actor: { id: actor.id, email: actor.email },

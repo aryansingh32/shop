@@ -10,10 +10,13 @@ import {
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  Store, LayoutGrid, Users, Settings, CreditCard, User, LogOut, Menu, X,
+  Home, ShoppingCart, Package, UserCircle, BookOpen,
+  TrendingUp, Users, LayoutGrid, Settings,
+  Store, LogOut, Menu, X, User,
 } from "lucide-react";
 import { getSessionFn, logoutFn } from "@/lib/auth.functions";
 import { BRAND_NAME } from "@/lib/config";
+import { filterNavGroups, type NavGroup } from "@/lib/navigation";
 import type { ShopSession } from "@/lib/session";
 
 export const Route = createFileRoute("/_app")({
@@ -25,9 +28,49 @@ export const Route = createFileRoute("/_app")({
   component: AppShell,
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Icon resolver — maps iconName strings from NAV_GROUPS to lucide-react nodes
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ICON_COMPONENTS: Record<string, React.ReactNode> = {
+  Home:        <Home size={18} />,
+  ShoppingCart:<ShoppingCart size={18} />,
+  Package:     <Package size={18} />,
+  UserCircle:  <UserCircle size={18} />,
+  BookOpen:    <BookOpen size={18} />,
+  TrendingUp:  <TrendingUp size={18} />,
+  Users:       <Users size={18} />,
+  LayoutGrid:  <LayoutGrid size={18} />,
+  Settings:    <Settings size={18} />,
+};
+
+function getNavIcon(iconName: string): React.ReactNode {
+  return ICON_COMPONENTS[iconName] ?? <LayoutGrid size={18} />;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
 function getInitials(name: string) {
   return name.split(" ").slice(0, 2).map((n) => n[0]?.toUpperCase()).join("");
 }
+
+/**
+ * Resolve the actual href for a nav item.
+ * Items with appSlug navigate to /open-app/$slug.
+ * All others navigate to their route directly.
+ */
+function resolveNavHref(item: NavGroup): string {
+  if (item.appSlug) {
+    return `/open-app/${item.appSlug}`;
+  }
+  return item.route;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// App Shell
+// ─────────────────────────────────────────────────────────────────────────────
 
 function AppShell() {
   const { session } = Route.useRouteContext();
@@ -80,6 +123,10 @@ function AppShell() {
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Top Bar
+// ─────────────────────────────────────────────────────────────────────────────
 
 function TopBar({ session, onMenuToggle, menuOpen }: { session: ShopSession; onMenuToggle: () => void; menuOpen: boolean }) {
   const doLogout = useServerFn(logoutFn);
@@ -175,67 +222,122 @@ function TopBar({ session, onMenuToggle, menuOpen }: { session: ShopSession; onM
   );
 }
 
-interface NavItem { to: string; icon: React.ReactNode; label: string; ownerOnly?: boolean; dividerBefore?: boolean; }
+// ─────────────────────────────────────────────────────────────────────────────
+// Sidebar Navigation — Feature 2: Workflow-first nav from NAV_GROUPS
+// ─────────────────────────────────────────────────────────────────────────────
 
-const NAV_ITEMS: NavItem[] = [
-  { to: "/dashboard", icon: <LayoutGrid size={18} />, label: "Dashboard" },
-  { to: "/employees", icon: <Users size={18} />, label: "Team", ownerOnly: true, dividerBefore: true },
-  { to: "/shop-settings", icon: <Settings size={18} />, label: "Shop settings", ownerOnly: true },
-  { to: "/subscription", icon: <CreditCard size={18} />, label: "Subscription", ownerOnly: true },
-  { to: "/profile", icon: <User size={18} />, label: "My profile", dividerBefore: true },
-];
-
+/**
+ * Renders sidebar navigation from NAV_GROUPS (navigation.ts).
+ *
+ * Security: nav items whose requiredAppSlugs are not in session.allowedAppSlugs
+ * are NOT rendered at all (not CSS-hidden) to avoid leaking route existence.
+ * filterNavGroups() enforces this — only items the session can actually access
+ * are returned to this component for rendering.
+ */
 function SidebarNav({ session }: { session: ShopSession }) {
   const routerState = useRouterState();
   const pathname = routerState.location.pathname;
-  const visibleItems = NAV_ITEMS.filter((item) => !item.ownerOnly || session.isOwner);
+
+  // Filter items to only those the session can access.
+  // Always-visible items (requiredAppSlugs: []) are always included.
+  const visibleItems = filterNavGroups(session.allowedAppSlugs);
 
   return (
-    <nav style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-      {visibleItems.map((item, idx) => {
-        const isActive = pathname === item.to || pathname.startsWith(item.to + "/");
-        const showDivider = item.dividerBefore && idx > 0;
+    <nav style={{ display: "flex", flexDirection: "column", gap: 0 }} aria-label="Main navigation">
+      {visibleItems.map((item) => {
+        const href = resolveNavHref(item);
+
+        // Determine active state: exact match or prefix match for nested routes.
+        // For open-app items, match against the app slug path.
+        const isActive = item.appSlug
+          ? pathname === `/open-app/${item.appSlug}` || pathname.startsWith(`/open-app/${item.appSlug}/`)
+          : pathname === item.route || pathname.startsWith(item.route + "/");
+
         return (
-          <div key={item.to}>
-            {showDivider && (
-              <div style={{ height: "1px", background: "var(--color-border)", margin: "0.5rem 0.5rem" }} />
+          <Link
+            key={item.key}
+            to={href as any}
+            style={{
+              display: "flex", alignItems: "center", gap: "0.625rem",
+              padding: "0.625rem 0.875rem",
+              borderRadius: "var(--radius-lg)",
+              fontSize: "0.9375rem",
+              fontWeight: isActive ? 600 : 500,
+              color: isActive ? "var(--color-primary)" : "var(--color-foreground-muted)",
+              background: isActive ? "var(--color-primary-soft)" : "transparent",
+              textDecoration: "none",
+              transition: "background 0.12s, color 0.12s",
+              position: "relative",
+              marginBottom: "0.125rem",
+              borderLeft: isActive ? "3px solid var(--color-primary)" : "3px solid transparent",
+              paddingLeft: isActive ? "calc(0.875rem - 3px)" : "0.875rem",
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) {
+                (e.currentTarget as HTMLAnchorElement).style.background = "var(--color-accent)";
+                (e.currentTarget as HTMLAnchorElement).style.color = "var(--color-foreground)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) {
+                (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
+                (e.currentTarget as HTMLAnchorElement).style.color = "var(--color-foreground-muted)";
+              }
+            }}
+          >
+            {getNavIcon(item.iconName)}
+            <span>{item.label}</span>
+            {item.comingSoon && (
+              <span style={{
+                marginLeft: "auto",
+                fontSize: "0.6rem", fontWeight: 700,
+                background: "var(--color-accent)",
+                color: "var(--color-foreground-muted)",
+                padding: "0.1rem 0.35rem",
+                borderRadius: "var(--radius-sm)",
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+              }}>
+                Soon
+              </span>
             )}
-            <Link
-              to={item.to}
-              style={{
-                display: "flex", alignItems: "center", gap: "0.625rem",
-                padding: "0.625rem 0.875rem",
-                borderRadius: "var(--radius-lg)",
-                fontSize: "0.9375rem",
-                fontWeight: isActive ? 600 : 500,
-                color: isActive ? "var(--color-primary)" : "var(--color-foreground-muted)",
-                background: isActive ? "var(--color-primary-soft)" : "transparent",
-                textDecoration: "none",
-                transition: "background 0.12s, color 0.12s",
-                position: "relative",
-                marginBottom: "0.125rem",
-                borderLeft: isActive ? "3px solid var(--color-primary)" : "3px solid transparent",
-                paddingLeft: isActive ? "calc(0.875rem - 3px)" : "0.875rem",
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  (e.currentTarget as HTMLAnchorElement).style.background = "var(--color-accent)";
-                  (e.currentTarget as HTMLAnchorElement).style.color = "var(--color-foreground)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
-                  (e.currentTarget as HTMLAnchorElement).style.color = "var(--color-foreground-muted)";
-                }
-              }}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </Link>
-          </div>
+          </Link>
         );
       })}
+
+      {/* Profile link — always visible at bottom */}
+      <div style={{ height: "1px", background: "var(--color-border)", margin: "0.5rem 0.5rem" }} />
+      <Link
+        to="/profile"
+        style={{
+          display: "flex", alignItems: "center", gap: "0.625rem",
+          padding: "0.625rem 0.875rem",
+          borderRadius: "var(--radius-lg)",
+          fontSize: "0.9375rem", fontWeight: 500,
+          color: pathname === "/profile" ? "var(--color-primary)" : "var(--color-foreground-muted)",
+          background: pathname === "/profile" ? "var(--color-primary-soft)" : "transparent",
+          textDecoration: "none",
+          transition: "background 0.12s, color 0.12s",
+          marginBottom: "0.125rem",
+          borderLeft: pathname === "/profile" ? "3px solid var(--color-primary)" : "3px solid transparent",
+          paddingLeft: pathname === "/profile" ? "calc(0.875rem - 3px)" : "0.875rem",
+        }}
+        onMouseEnter={(e) => {
+          if (pathname !== "/profile") {
+            (e.currentTarget as HTMLAnchorElement).style.background = "var(--color-accent)";
+            (e.currentTarget as HTMLAnchorElement).style.color = "var(--color-foreground)";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (pathname !== "/profile") {
+            (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
+            (e.currentTarget as HTMLAnchorElement).style.color = "var(--color-foreground-muted)";
+          }
+        }}
+      >
+        <User size={18} />
+        <span>My profile</span>
+      </Link>
     </nav>
   );
 }

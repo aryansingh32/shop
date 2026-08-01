@@ -25,8 +25,10 @@ import {
   ADMIN_PASSWORD,
   odooCreateUser,
   odooCreatePosConfig,
+  odooCreateLoyaltyProgram,
   syncOwnerGroupsAfterModuleInstall,
 } from "./client";
+import { getBusinessTypeTemplateBySlug } from "../business-types.functions";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -63,16 +65,21 @@ export interface ShopHealthResult {
  * 1. Create the database (installs `base` module — ~30 seconds)
  * 2. Install the plan's app modules (may take 2-5 min for heavy modules)
  *
- * @param dbName         Unique database name (e.g. "shop_mobileworld_abc1")
- * @param adminEmail     Owner's email — set as the Odoo admin login for this DB
- * @param adminPassword  Password to set for the admin user on this DB
- * @param moduleNames    Odoo technical module names to install (from plan)
+ * @param dbName            Unique database name (e.g. "shop_mobileworld_abc1")
+ * @param adminEmail        Owner's email — set as the Odoo admin login for this DB
+ * @param adminPassword     Password to set for the admin user on this DB
+ * @param moduleNames       Odoo technical module names to install (from plan)
+ * @param businessTypeSlug  Optional business-type slug (e.g. 'pharmacy'). When provided,
+ *                          the template's default_app_slugs are merged into the install list
+ *                          (additive — never removes plan modules). When omitted, behavior
+ *                          is byte-for-byte identical to the pre-feature behavior.
  */
 export async function provisionShop(
   dbName: string,
   adminEmail: string,
   adminPassword: string,
   moduleNames: string[],
+  businessTypeSlug?: string,
 ): Promise<ProvisionResult | ProvisionError> {
   try {
     // Safety check — don't overwrite an existing database
@@ -95,11 +102,50 @@ export async function provisionShop(
     //                    The addon lives in custom_addons/ and is mounted into the Odoo
     //                    container via docker-compose. It depends on 'web', 'point_of_sale',
     //                    and 'stock' — satisfied by both Standard and Premium plans.
-    const allModules = Array.from(
-      new Set(["l10n_in", "barcodes", "kirana_rebrand", ...moduleNames]),
-    );
-    console.log(`[provisionShop] Installing modules on ${dbName}:`, allModules);
-    await odooInstallModules(dbName, allModules);
+    // Base module set: always include localization, barcode support, and white-label addon.
+    let allModules = new Set(["l10n_in", "barcodes", "kirana_rebrand", ...moduleNames]);
+
+    // Feature 1 — Business-Type Templates:
+    // If a businessTypeSlug is provided, look up the template and merge its
+    // default_app_slugs into the install set. This is ADDITIVE — we never
+    // remove modules the plan already grants.
+    if (businessTypeSlug) {
+      const template = await getBusinessTypeTemplateBySlug(businessTypeSlug).catch((err) => {
+        console.warn(
+          `[provisionShop] Failed to look up business-type template "${businessTypeSlug}": ${String(err)}. Proceeding without template.`,
+        );
+        return null;
+      });
+
+      if (template) {
+        // Map app slugs → Odoo module names via the apps table.
+        // The template stores slugs (e.g. 'pharmacy'), not raw module names.
+        // We resolve slugs to Odoo module names by fetching from supabaseAdmin.
+        // Slugs not resolvable (e.g. not in apps table) are silently skipped.
+        const { supabaseAdmin } = await import("../../integrations/supabase/client.server");
+        const { data: appRows } = await supabaseAdmin
+          .from("apps")
+          .select("slug, odoo_module_name")
+          .in("slug", template.default_app_slugs.length > 0 ? template.default_app_slugs : ["__none__"]);
+
+        const templateModuleNames = (appRows ?? []).map((a: any) => a.odoo_module_name).filter(Boolean);
+        for (const mod of templateModuleNames) {
+          allModules.add(mod);
+        }
+        console.log(
+          `[provisionShop] Business type "${businessTypeSlug}" added modules:`,
+          templateModuleNames,
+        );
+      } else {
+        console.warn(
+          `[provisionShop] Business type template "${businessTypeSlug}" not found in database. Provisioning without template defaults.`,
+        );
+      }
+    }
+
+    const allModulesArray = Array.from(allModules);
+    console.log(`[provisionShop] Installing modules on ${dbName}:`, allModulesArray);
+    await odooInstallModules(dbName, allModulesArray);
 
     // Step 3: Create the shop owner's admin user account
     await odooCreateUser(dbName, adminEmail, adminPassword, "Shop Owner");
@@ -110,10 +156,32 @@ export async function provisionShop(
     // IMPORTANT: failures here are NOT silently swallowed — a missing pos.config causes
     // the POS app card to land on the wrong Odoo screen every time. Let it propagate so
     // the shop is marked 'failed' and can be retried, rather than marked 'live' but broken.
-    const posCreated = allModules.includes("point_of_sale");
+    const posCreated = allModules.has("point_of_sale");
     if (posCreated) {
       await odooCreatePosConfig(dbName, "Shop Counter");
       console.log(`[provisionShop] pos.config created on ${dbName}`);
+    }
+
+    // Feature 6 — Loyalty Program auto-creation:
+    // Create a default loyalty program if the loyalty module is being installed.
+    // IMPORTANT: This failure is deliberately NON-FATAL (unlike POS config above).
+    // Rationale: POS is completely unusable without a pos.config, so that failure
+    // must block provisioning. Loyalty is a value-add feature — the shop can bill
+    // and operate normally without it. A failed loyalty setup should never block
+    // a merchant from going live. This distinction is intentional; do not change
+    // this to a fatal failure by copying the POS pattern indiscriminately.
+    const loyaltyInstalled = allModules.has("loyalty");
+    if (loyaltyInstalled) {
+      try {
+        await odooCreateLoyaltyProgram(dbName);
+        console.log(`[provisionShop] Default loyalty program created on ${dbName}`);
+      } catch (loyaltyErr) {
+        // Non-fatal: log and continue. The shop is usable without a loyalty program.
+        console.warn(
+          `[provisionShop] Failed to create default loyalty program on ${dbName} (non-fatal):`,
+          loyaltyErr,
+        );
+      }
     }
 
     // Ensure the shop owner receives all permissions from Administrator (ID 2)
@@ -195,6 +263,20 @@ export async function reactivateShopOdoo(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Modules that must NEVER be uninstalled regardless of plan changes or
+ * merchant-driven app toggles (Feature 5 marketplace).
+ *
+ * These are platform infrastructure — removing them would break core functionality:
+ *   l10n_in:       India GST localization — mandatory for all Indian shops
+ *   barcodes:      barcode scanning support — hardcoded into every new provisioning
+ *   kirana_rebrand: our white-label addon — removing it exposes Odoo branding
+ *
+ * Exported so the Feature 5 marketplace toggle function can import this exact
+ * set instead of redefining it — single source of truth.
+ */
+export const PINNED_MODULES = new Set(["l10n_in", "barcodes", "kirana_rebrand"]);
+
+/**
  * Sync installed Odoo modules when a shop changes plan.
  * Installs modules added by the new plan, uninstalls modules removed by it.
  *
@@ -215,12 +297,6 @@ export async function syncPlanModules(
   const toInstall = newModules.filter((m) => !oldModules.includes(m));
   const toUninstall = oldModules.filter((m) => !newModules.includes(m));
 
-  // Modules that must NEVER be uninstalled regardless of plan changes.
-  // These are platform infrastructure — removing them would break core functionality:
-  //   l10n_in:       India GST localization — mandatory for all Indian shops
-  //   barcodes:      barcode scanning support — hardcoded into every new provisioning
-  //   kirana_rebrand: our white-label addon — removing it would expose Odoo branding to shop owners
-  const PINNED_MODULES = new Set(["l10n_in", "barcodes", "kirana_rebrand"]);
   const safeToUninstall = toUninstall.filter((m) => !PINNED_MODULES.has(m));
 
   await Promise.all([

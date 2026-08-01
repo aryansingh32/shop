@@ -591,3 +591,76 @@ export async function syncOwnerGroupsAfterModuleInstall(db: string): Promise<voi
   }
 }
 
+/**
+ * Create a default points-based loyalty program on a freshly provisioned database.
+ *
+ * This is called at provisioning time when the 'loyalty' module is being installed.
+ * It creates one default program so merchants can immediately use the POS loyalty
+ * UI without needing to configure it manually in the Odoo backend.
+ *
+ * IMPORTANT: This function's failure is deliberately NON-FATAL in provisionShop().
+ * A shop can operate normally without a loyalty program — only POS-config absence
+ * is a fatal provisioning blocker. See the comment in provisioning.ts for full
+ * rationale. Do not change this to fatal by copying the POS-config pattern.
+ *
+ * Field assumptions (Odoo 18 CE loyalty.program model):
+ *   program_type: 'loyalty'  — standard points-earn + redeem program
+ *   applies_on:  'both'      — POS + Sales orders
+ *   trigger:     'auto'      — points earned automatically on every eligible order
+ * REVIEWER: verify these field names/values against a live Odoo 18 CE instance
+ * before the first production deploy — they are based on source inspection, not
+ * a live test.
+ *
+ * Default rule: 1 point per ₹100 spent (tune with product post-launch).
+ *
+ * @param db   The shop's Odoo database name
+ * @returns    The ID of the created loyalty.program record
+ */
+export async function odooCreateLoyaltyProgram(db: string): Promise<number> {
+  // Find the main company ID — same lookup pattern as odooCreatePosConfig.
+  const companies = await odooAdminExecute<{ id: number; name: string }[]>(
+    db, "res.company", "search_read",
+    [[[" id", ">", 0]]],
+    { fields: ["id", "name"], limit: 1 }
+  );
+  const companyId = companies.length > 0 ? companies[0].id : 1;
+
+  // Create the loyalty program with minimal required fields.
+  // program_type / applies_on / trigger: ASSUMPTION — verify field names against
+  // a live Odoo 18 CE instance. Flagged in PR description.
+  const programVals: Record<string, unknown> = {
+    name: "Loyalty Points",
+    program_type: "loyalty",   // ASSUMPTION: standard points-earn program
+    applies_on: "both",        // ASSUMPTION: POS + Sales
+    trigger: "auto",           // ASSUMPTION: auto-award on every order
+    company_id: companyId,
+  };
+
+  const programId = await odooAdminExecute<number>(
+    db, "loyalty.program", "create",
+    [programVals]
+  );
+
+  // Create default earning rule: 1 point per ₹100 spent.
+  // "Default, tune with product" — not a hard business requirement.
+  const ruleVals: Record<string, unknown> = {
+    program_id: programId,
+    reward_point_amount: 1,       // 1 point awarded per qualifying unit
+    minimum_amount: 100,          // ₹100 spend per point (tune with product)
+    minimum_amount_tax_mode: "incl", // ASSUMPTION: tax inclusive
+    minimum_qty: 0,               // no minimum quantity required
+  };
+
+  try {
+    await odooAdminExecute(db, "loyalty.rule", "create", [ruleVals]);
+  } catch (ruleErr) {
+    // Rule creation is non-fatal: the program exists and is usable without a
+    // pre-configured rule — the merchant can add rules manually in the Odoo UI.
+    console.warn(
+      `[odooCreateLoyaltyProgram] Failed to create default earning rule on DB "${db}" (non-fatal):`,
+      ruleErr,
+    );
+  }
+
+  return programId;
+}

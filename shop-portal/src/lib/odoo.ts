@@ -467,3 +467,53 @@ export async function isOdooReachable(): Promise<boolean> {
     return false;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Loyalty balance (Feature 6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get the total loyalty points balance for a customer across ALL loyalty programs.
+ *
+ * Reads loyalty.card records where partner_id = partnerId and sums the `points`
+ * field. A customer may have cards on multiple programs; all are summed into a
+ * single number for v1's simple display.
+ *
+ * Security: always called with the shop's session.odooDb — never accept a db
+ * name from user input to prevent cross-shop data access. Per-database Odoo
+ * isolation provides the primary boundary.
+ *
+ * @param db         The shop's Odoo database name (from session only, never user input)
+ * @param partnerId  The Odoo partner (res.partner) ID for the customer
+ * @returns          Total points across all loyalty cards; 0 if no cards exist; never throws.
+ */
+export async function getLoyaltyBalanceForCustomer(
+  db: string,
+  partnerId: number,
+): Promise<number> {
+  try {
+    const cards = await odooAdminExecute<{ id: number; points: number }[]>(
+      db,
+      "loyalty.card",
+      "search_read",
+      [[[" partner_id", "=", partnerId]]],
+      { fields: ["id", "points"] },
+    );
+
+    if (!cards || cards.length === 0) {
+      // First-time customer with no loyalty card yet — return 0, never throw
+      return 0;
+    }
+
+    // Sum points across all loyalty cards (customer may have cards on multiple programs)
+    return cards.reduce((total, card) => total + (card.points ?? 0), 0);
+  } catch (err) {
+    // If loyalty module isn't installed or query fails, return 0 gracefully —
+    // never expose a loyalty-read failure to the merchant UI.
+    console.warn(
+      `[getLoyaltyBalanceForCustomer] Failed to read loyalty.card for partner ${partnerId} on DB "${db}":`,
+      err,
+    );
+    return 0;
+  }
+}

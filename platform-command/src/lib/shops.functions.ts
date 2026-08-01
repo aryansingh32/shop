@@ -28,6 +28,10 @@ const createShopSchema = z.object({
   subdomain: z.string().regex(/^[a-z0-9-]+$/i).min(3).max(60).optional().nullable(),
   plan_id: z.string().uuid().optional().nullable(),
   admin_password: z.string().min(3).max(100).optional(),
+  /** Feature 1 — Business-Type Onboarding Templates: optional slug that pre-selects
+   * Odoo modules at provisioning time. If omitted, provisioning uses plan modules only
+   * (identical to pre-feature behavior). */
+  business_type_slug: z.string().max(60).optional().nullable(),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -254,6 +258,8 @@ export const createShop = createServerFn({ method: "POST" })
         odoo_admin_email: ownerEmail,
         odoo_admin_password: ownerPassword,
         trial_ends_at: trialEndsAt,
+        // Feature 1: store the chosen business type for future reference
+        business_type_slug: data.business_type_slug ?? null,
       } as any)
       .select()
       .single();
@@ -290,6 +296,9 @@ export const createShop = createServerFn({ method: "POST" })
       ownerPassword,
       moduleNames,
       actor,
+      // Feature 1: pass the chosen business type slug so provisionShop() can
+      // look up and merge the template's default_app_slugs at install time.
+      data.business_type_slug ?? undefined,
     ).catch(err => {
       console.error("🔥 FATAL: runProvisioningAsync threw an unhandled error:", err);
     });
@@ -306,8 +315,10 @@ async function runProvisioningAsync(
   ownerPassword: string,
   moduleNames: string[],
   actor: { id: string; email: string },
+  /** Feature 1: optional business-type slug forwarded to provisionShop() */
+  businessTypeSlug?: string,
 ) {
-  const result = await provisionShop(odooDbName, ownerEmail, ownerPassword, moduleNames);
+  const result = await provisionShop(odooDbName, ownerEmail, ownerPassword, moduleNames, businessTypeSlug);
 
   if (result.success) {
     await supabaseAdmin
