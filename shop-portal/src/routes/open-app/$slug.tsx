@@ -19,7 +19,7 @@ import { ArrowLeft, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { getSessionFn } from "@/lib/auth.functions";
 import { APP_ODOO_PATHS } from "@/lib/config";
 import { BRAND_NAME } from "@/lib/config";
-import { getPosConfigId } from "@/lib/odoo";
+import { getPosConfigIdFn } from "@/lib/shop.functions";
 
 // ── Styles to inject into the Odoo iframe ─────────────────────────────────
 // This hides all Odoo chrome so the shop owner only sees the app content.
@@ -95,7 +95,7 @@ export const Route = createFileRoute("/open-app/$slug")({
       // /pos/ui?config_id=<id>&db=<db> skips the onboarding wizard and routes
       // straight to the checkout product grid.
       // Without config_id, Odoo may redirect to the onboarding wizard or Discuss.
-      const configId = await getPosConfigId(session.odooDb);
+      const configId = await getPosConfigIdFn({ data: { db: session.odooDb } });
       if (configId) {
         iframeSrc = `${basePath}?config_id=${configId}&db=${db}`;
       } else {

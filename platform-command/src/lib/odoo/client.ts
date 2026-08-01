@@ -12,7 +12,6 @@
 
 import http from "node:http";
 import https from "node:https";
-import { URL } from "node:url";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -428,6 +427,19 @@ export async function odooCreateUser(
   );
   const adminGroupId = extIds.length > 0 ? extIds[0].res_id : null;
 
+  // Retrieve Administrator (ID 2) groups to clone them for the shop owner
+  let groupIds: number[] = [];
+  try {
+    const adminUserData = await odooAdminExecute<Array<{ groups_id: number[] }>>(
+      db, "res.users", "read", [[2]], { fields: ["groups_id"] }
+    );
+    if (adminUserData.length > 0) {
+      groupIds = adminUserData[0].groups_id;
+    }
+  } catch (err) {
+    console.warn(`[odooCreateUser] Failed to read admin (ID 2) groups:`, err);
+  }
+
   const vals: Record<string, any> = {
     name,
     login: email,
@@ -435,8 +447,33 @@ export async function odooCreateUser(
     email,
   };
 
-  if (adminGroupId) {
+  if (groupIds.length > 0) {
+    // Replace all groups with the cloned ones
+    vals.groups_id = [[6, 0, groupIds]];
+  } else if (adminGroupId) {
     vals.groups_id = [[4, adminGroupId, 0]];
+  }
+
+  // Set a sensible default home action for this user.
+  // Without this, Odoo resolves the "first accessible menu" when no action is in the URL,
+  // which tends to be Discuss/Inbox (mail is a dependency of most modules and sorts early).
+  // We use the Inventory Products action as the home screen — it's the most universally
+  // relevant landing screen for a retail shop owner (all plans include Inventory).
+  // Resolved via xmlid lookup to avoid hardcoding a numeric ID that differs per database.
+  try {
+    const actionRefs = await odooAdminExecute<{res_id: number}[]>(
+      db, "ir.model.data", "search_read",
+      [[["module", "=", "stock"], ["name", "=", "product_template_action_product"]]],
+      { fields: ["res_id"], limit: 1 }
+    );
+    if (actionRefs.length > 0) {
+      vals.action_id = actionRefs[0].res_id;
+    }
+  } catch {
+    // Non-fatal: if the action lookup fails (e.g. stock not installed yet),
+    // the user is still created without a default action. The portal always
+    // deep-links to the correct screen anyway; this is just a defense-in-depth
+    // guard for direct backend access (support/debugging).
   }
 
   const userId = await odooAdminExecute<number>(
@@ -518,5 +555,39 @@ export async function odooCreatePosConfig(
   );
 
   return configId;
+}
+
+/**
+ * Ensure all shop owners (human internal users with admin/system access)
+ * have all permission groups that Administrator (ID 2) has.
+ * Should be called after installing new modules or provisioning a shop.
+ */
+export async function syncOwnerGroupsAfterModuleInstall(db: string): Promise<void> {
+  try {
+    const adminUserData = await odooAdminExecute<Array<{ groups_id: number[] }>>(
+      db, "res.users", "read", [[2]], { fields: ["groups_id"] }
+    );
+    if (!adminUserData[0]?.groups_id) return;
+    const adminGroups = new Set(adminUserData[0].groups_id);
+
+    const owners = await odooAdminExecute<Array<{ id: number; groups_id: number[] }>>(
+      db, "res.users", "search_read",
+      [[["share", "=", false], ["id", ">", 4]]],
+      { fields: ["id", "groups_id"] }
+    );
+
+    for (const owner of owners) {
+      const ownerGroups = new Set(owner.groups_id);
+      const missing = [...adminGroups].filter((id) => !ownerGroups.has(id));
+      if (missing.length > 0) {
+        await odooAdminExecute(db, "res.users", "write", [
+          [owner.id],
+          { groups_id: missing.map((id) => [4, id, 0]) },
+        ]);
+      }
+    }
+  } catch (err) {
+    console.warn(`[syncOwnerGroupsAfterModuleInstall] Failed to sync owner groups on DB "${db}":`, err);
+  }
 }
 

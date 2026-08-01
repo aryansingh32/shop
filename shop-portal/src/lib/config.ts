@@ -32,27 +32,53 @@ export const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
  * Map from Supabase app slug → Odoo URL path (Odoo 18 unified web client paths).
  * These are served under /odoo/* or /pos/* (proxied from our domain via Vite dev / Nginx prod).
  *
+ * ROUTING STRATEGY (Odoo 18):
+ *   Odoo 18's client-side router resolves each /odoo/<segment> as an action lookup.
+ *   Only path segments explicitly registered via a `path` field in an ir.actions record
+ *   are valid — guessing sub-paths like /odoo/inventory/products DOES NOT WORK because
+ *   'products' is not a registered path in the stock module.
+ *
+ *   Safe approach: use /odoo/action-<module>.<xml_id> which bypasses path registration
+ *   entirely and directly loads the exact action record. This is stable across Odoo
+ *   upgrades regardless of whether a friendly short path is registered.
+ *
  * SPECIAL CASE — pos:
  *   The value "/pos/ui" is a base path. The open-app route handler will:
  *   1. Look up the shop's pos.config ID via Odoo RPC (odooGetPosConfigId)
  *   2. Append ?config_id=<id>&db=<db> to open the correct session directly
- *   3. Fall back to "/pos/ui" if no config_id can be resolved (will show Odoo's
- *      own fallback, which for a db with a pos.config goes straight to POS)
- *
- * SPECIAL CASE — inventory:
- *   Routes to /odoo/inventory/products — the Inventory → Products list view
- *   (product.template with on-hand quantities). NOT the Inventory Overview
- *   (warehouse operation types / receipts dashboard).
+ *   Without config_id, Odoo redirects to the POS backend menu — not the live POS.
  *
  * To add a new app: add a row in the Supabase apps table AND add its path here.
+ * To verify a path: open the raw Odoo backend, navigate to the exact target screen,
+ * and copy the resulting /odoo/... URL. If it has a sub-segment not listed in the
+ * module's xml path registrations, use /odoo/action-<xmlid> instead.
  */
 export const APP_ODOO_PATHS: Record<string, string> = {
+  // POS — handled specially in open-app/$slug.tsx (appends ?config_id=<id>)
   pos: "/pos/ui",
-  inventory: "/odoo/inventory/products",
+
+  // Inventory → Product list with on-hand quantities.
+  // Verified: 'products' is NOT a registered path in the stock module (Odoo 18 source).
+  // stock.picking_type_action_kanban has path='inventory' (the Operations overview).
+  // stock.product_template_action_product has NO friendly path — must use action-xmlid.
+  inventory: "/odoo/action-stock.product_template_action_product",
+
+  // Sales → Quotations / Sales Orders list.
+  // 'sales' is the registered path for sale.action_quotations_with_onboarding (sale module).
   sales: "/odoo/sales",
+
+  // Accounting → Customer Invoices (most relevant landing for a retail shop).
+  // 'accounting' is the registered path for the Accounting app root action.
   accounting: "/odoo/accounting",
+
+  // Employees → Employee list.
+  // 'employees' is the registered path for hr.open_view_employee_list_my in the hr module.
   employees: "/odoo/employees",
+
+  // Purchase → Purchase Orders list.
+  // 'purchase' is the registered path for purchase.purchase_rfq in the purchase module.
   purchase: "/odoo/purchase",
+
   // barcodes: no standalone app screen — scanning capability is embedded in
   // POS and Inventory. No path entry needed; the module just enables scanning.
 };

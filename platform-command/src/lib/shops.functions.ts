@@ -613,7 +613,7 @@ export const retryProvisioning = createServerFn({ method: "POST" })
 
     const { data: shop } = await context.supabase
       .from("shops")
-      .select("odoo_db_name, plan_id, email, subdomain, business_name")
+      .select("odoo_db_name, plan_id, email, subdomain, business_name, odoo_admin_password")
       .eq("id", data.id)
       .maybeSingle();
     if (!shop) throw new Error("Shop not found");
@@ -638,7 +638,7 @@ export const retryProvisioning = createServerFn({ method: "POST" })
     // Re-run provisioning
     const moduleNames = await getPlanModules(context.supabase, shop.plan_id);
     const ownerEmail = shop.email ?? `admin@${shop.subdomain}.kshetra.app`;
-    const ownerPassword = Math.random().toString(36).slice(2, 12);
+    const ownerPassword = shop.odoo_admin_password || "admin";
 
     // Use existing db name if we already have one, else generate new
     const odooDbName = shop.odoo_db_name ?? generateDbName(shop.subdomain ?? shop.business_name);

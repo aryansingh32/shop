@@ -55,7 +55,7 @@ export async function writeAudit(
 ): Promise<void> {
   try {
     const actorId = args.actor.user_id || args.actor.id;
-    const { error } = await supabase.from("audit_log").insert({
+    const { error } = await supabaseAdmin.from("audit_log").insert({
       actor_id: actorId,
       actor_email: args.actor.email,
       shop_id: args.shopId ?? null,

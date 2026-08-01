@@ -17,7 +17,7 @@ const testResolveFn = createServerFn({ method: "GET" }).handler(async () => {
     keyJson: JSON.stringify(SUPABASE_SERVICE_ROLE_KEY),
     lastFetchLog,
     shopCtx,
-    rawError,
+    rawError: rawError ? { message: rawError.message, code: rawError.code } : null,
     rawShopsCount: rawShops?.length ?? 0,
     rawShops: rawShops?.map(s => ({ id: s.id, name: s.business_name, sub: s.subdomain, db: s.odoo_db_name, status: s.provisioning_status }))
   };

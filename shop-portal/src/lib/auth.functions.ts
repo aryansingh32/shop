@@ -41,6 +41,7 @@ import {
   getUserGroupExternalIds,
   resolveAllowedAppSlugs,
   isOdooAdmin,
+  ensureOwnerHasAllAppGroups,
 } from "./odoo";
 import { resolveShopFromRequest } from "./subdomain";
 import { supabasePortal } from "./supabase.server";
@@ -120,6 +121,12 @@ export const loginFn = createServerFn({ method: "POST" })
     // 3. Determine role + allowed app slugs
     const groupExtIds = await getUserGroupExternalIds(db, authResult.uid);
     const ownerFlag = isOdooAdmin(groupExtIds);
+
+    if (ownerFlag) {
+      // Guarantee that the shop owner has all permissions from Administrator (ID 2),
+      // fixing any missing application groups from earlier provisionings or plan changes.
+      await ensureOwnerHasAllAppGroups(db, authResult.uid);
+    }
 
     let planAppSlugs: string[] = [];
     if (shop.plan_id) {

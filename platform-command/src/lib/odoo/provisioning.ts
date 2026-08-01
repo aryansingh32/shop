@@ -25,6 +25,7 @@ import {
   ADMIN_PASSWORD,
   odooCreateUser,
   odooCreatePosConfig,
+  syncOwnerGroupsAfterModuleInstall,
 } from "./client";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,13 +88,15 @@ export async function provisionShop(
     await odooDbCreate(dbName, ADMIN_LOGIN, ADMIN_PASSWORD, "en_IN", "IN");
 
     // Step 2: Install plan modules.
-    // Always include:
-    //   - l10n_in: India GST localization (mandatory for all Indian shops)
-    //   - barcodes: barcode scanning (core capability, included in all plans)
-    // NOTE: kirana_rebrand is intentionally omitted until the custom module is built.
-    //       Installing a non-existent module name will cause Odoo to error and fail the whole provisioning.
+    // Always include these regardless of plan tier:
+    //   - l10n_in:       India GST localization (mandatory for all Indian shops)
+    //   - barcodes:      barcode scanning support (core checkout capability)
+    //   - kirana_rebrand: strips Odoo branding from the web client and POS customer display.
+    //                    The addon lives in custom_addons/ and is mounted into the Odoo
+    //                    container via docker-compose. It depends on 'web', 'point_of_sale',
+    //                    and 'stock' — satisfied by both Standard and Premium plans.
     const allModules = Array.from(
-      new Set(["l10n_in", "barcodes", ...moduleNames]),
+      new Set(["l10n_in", "barcodes", "kirana_rebrand", ...moduleNames]),
     );
     console.log(`[provisionShop] Installing modules on ${dbName}:`, allModules);
     await odooInstallModules(dbName, allModules);
@@ -102,20 +105,20 @@ export async function provisionShop(
     await odooCreateUser(dbName, adminEmail, adminPassword, "Shop Owner");
 
     // Step 4: Create a ready-to-use pos.config so the POS can be opened directly.
-    // Without this, Odoo shows a first-run onboarding wizard to every new shop.
-    // We create a minimal but fully configured POS with sane Indian retail defaults.
+    // Without this, Odoo redirects to the POS backend config list (not the live POS UI).
     // The portal opens POS via /pos/ui?config_id=<id> using this record's ID.
-    const posCreated = moduleNames.includes("point_of_sale");
+    // IMPORTANT: failures here are NOT silently swallowed — a missing pos.config causes
+    // the POS app card to land on the wrong Odoo screen every time. Let it propagate so
+    // the shop is marked 'failed' and can be retried, rather than marked 'live' but broken.
+    const posCreated = allModules.includes("point_of_sale");
     if (posCreated) {
-      try {
-        await odooCreatePosConfig(dbName, "Shop Counter");
-        console.log(`[provisionShop] pos.config created on ${dbName}`);
-      } catch (posErr) {
-        // Non-fatal: log but don't fail provisioning if POS config creation fails.
-        // The shop owner will see the onboarding wizard but can still configure manually.
-        console.warn(`[provisionShop] Warning: pos.config creation failed on ${dbName}:`, posErr);
-      }
+      await odooCreatePosConfig(dbName, "Shop Counter");
+      console.log(`[provisionShop] pos.config created on ${dbName}`);
     }
+
+    // Ensure the shop owner receives all permissions from Administrator (ID 2)
+    // for all newly installed modules (POS, Inventory, Accounting, etc.)
+    await syncOwnerGroupsAfterModuleInstall(dbName);
 
     const installed = await odooListInstalledModules(dbName);
     return {
@@ -212,13 +215,20 @@ export async function syncPlanModules(
   const toInstall = newModules.filter((m) => !oldModules.includes(m));
   const toUninstall = oldModules.filter((m) => !newModules.includes(m));
 
-  // Always keep l10n_in — never uninstall the India localization
-  const safeToUninstall = toUninstall.filter((m) => m !== "l10n_in");
+  // Modules that must NEVER be uninstalled regardless of plan changes.
+  // These are platform infrastructure — removing them would break core functionality:
+  //   l10n_in:       India GST localization — mandatory for all Indian shops
+  //   barcodes:      barcode scanning support — hardcoded into every new provisioning
+  //   kirana_rebrand: our white-label addon — removing it would expose Odoo branding to shop owners
+  const PINNED_MODULES = new Set(["l10n_in", "barcodes", "kirana_rebrand"]);
+  const safeToUninstall = toUninstall.filter((m) => !PINNED_MODULES.has(m));
 
   await Promise.all([
     odooInstallModules(dbName, toInstall),
     odooUninstallModules(dbName, safeToUninstall),
   ]);
+
+  await syncOwnerGroupsAfterModuleInstall(dbName);
 
   return { installed: toInstall, uninstalled: safeToUninstall };
 }

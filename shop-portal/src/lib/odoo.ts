@@ -13,7 +13,6 @@
 
 import http from "node:http";
 import https from "node:https";
-import { URL } from "node:url";
 import { ODOO_URL, ODOO_ADMIN_LOGIN, ODOO_ADMIN_PASSWORD, APP_ODOO_GROUPS } from "./config";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -207,6 +206,38 @@ export function isOdooAdmin(groupExtIds: string[]): boolean {
   return groupExtIds.includes("base.group_system");
 }
 
+/**
+ * Ensure that a shop owner user has all permission groups that Administrator (ID 2) has.
+ * This guarantees that whenever new apps (like POS, Inventory, Accounting) are installed
+ * or updated, the shop owner automatically receives the corresponding Manager/User groups.
+ */
+export async function ensureOwnerHasAllAppGroups(db: string, uid: number): Promise<void> {
+  try {
+    if (uid === 1 || uid === 2) return;
+    const adminData = await odooAdminExecute<Array<{ groups_id: number[] }>>(
+      db, "res.users", "read", [[2]], { fields: ["groups_id"] }
+    );
+    const ownerData = await odooAdminExecute<Array<{ groups_id: number[] }>>(
+      db, "res.users", "read", [[uid]], { fields: ["groups_id"] }
+    );
+    if (!adminData[0]?.groups_id || !ownerData[0]?.groups_id) return;
+
+    const adminGroups = new Set(adminData[0].groups_id);
+    const ownerGroups = new Set(ownerData[0].groups_id);
+
+    const missingGroups = [...adminGroups].filter((id) => !ownerGroups.has(id));
+    if (missingGroups.length > 0) {
+      console.log(`[ensureOwnerHasAllAppGroups] Granting ${missingGroups.length} missing groups to owner (uid ${uid}) on database "${db}"`);
+      await odooAdminExecute(db, "res.users", "write", [
+        [uid],
+        { groups_id: missingGroups.map((id) => [4, id, 0]) },
+      ]);
+    }
+  } catch (err) {
+    console.warn(`[ensureOwnerHasAllAppGroups] Failed to sync owner groups on DB "${db}":`, err);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Employee management
 // ─────────────────────────────────────────────────────────────────────────────
@@ -373,11 +404,53 @@ export async function getPosConfigId(db: string): Promise<number | null> {
   try {
     const configs = await odooAdminExecute<{ id: number; name: string }[]>(
       db, "pos.config", "search_read",
-      [[[["active", "=", true]]]],
+      [[["active", "=", true]]],
       { fields: ["id", "name"], limit: 1, order: "id asc" }
     );
-    return configs.length > 0 ? configs[0].id : null;
-  } catch {
+    if (configs.length > 0) {
+      return configs[0].id;
+    }
+
+    console.log(`[getPosConfigId] No active pos.config found for database "${db}". Creating default...`);
+
+    // Find the main company ID
+    const companies = await odooAdminExecute<{ id: number; name: string }[]>(
+      db, "res.company", "search_read",
+      [[["id", ">", 0]]],
+      { fields: ["id", "name"], limit: 1 }
+    );
+    const companyId = companies.length > 0 ? companies[0].id : 1;
+
+    // Find the Cash payment method
+    const paymentMethods = await odooAdminExecute<{ id: number; name: string }[]>(
+      db, "pos.payment.method", "search_read",
+      [[["is_cash_count", "=", true]]],
+      { fields: ["id", "name"], limit: 1 }
+    );
+    const cashPaymentMethodIds: number[] = paymentMethods.length > 0
+      ? [paymentMethods[0].id]
+      : [];
+
+    const configVals: Record<string, unknown> = {
+      name: "Shop Counter",
+      company_id: companyId,
+      module_pos_restaurant: false,
+      module_pos_hr: false,
+    };
+
+    if (cashPaymentMethodIds.length > 0) {
+      configVals.payment_method_ids = [[6, 0, cashPaymentMethodIds]];
+    }
+
+    const configId = await odooAdminExecute<number>(
+      db, "pos.config", "create",
+      [configVals]
+    );
+
+    console.log(`[getPosConfigId] Dynamically created pos.config with ID ${configId} for database "${db}"`);
+    return configId;
+  } catch (err) {
+    console.error(`[getPosConfigId] Failed to lookup/create pos.config:`, err);
     return null;
   }
 }

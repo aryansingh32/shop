@@ -3,9 +3,9 @@
 Read this fully before making any changes. This document explains what we're building, why, what already exists, and what's still missing — so you have the full picture before touching any code.
 
 ---
+rms
 
-## 1. The business, in plain terms
-
+## 1. The business, in plain te
 We are building a B2B SaaS product for small retail shops in India — primarily mobile phone shops and clothing shops, with malls as a secondary/optional target later. These are non-technical shop owners who need working retail software (billing counter, stock tracking, GST-compliant invoicing) but have no interest in installing, configuring, or maintaining anything themselves.
 
 We sell this as a monthly subscription — roughly ₹999 to ₹1499/month depending on plan tier — where the shop owner just logs into a simple dashboard and everything works. No setup, no IT knowledge required, no visible trace of any underlying open-source software.

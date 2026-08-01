@@ -147,6 +147,11 @@ export const setShopUserPassword = createServerFn({ method: "POST" })
     // Reset ALL internal Odoo admin/staff users natively using Odoo ORM framework
     await resetOdooUserPasswordPg(shop.odoo_db_name, data.newPassword);
 
+    await context.supabase
+      .from("shops")
+      .update({ odoo_admin_password: data.newPassword } as any)
+      .eq("id", data.shopId);
+
     await writeAudit(context.supabase, {
       actor: { id: actor.user_id, user_id: actor.user_id, email: actor.email },
       shopId: data.shopId,

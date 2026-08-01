@@ -9,7 +9,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { supabasePortal, type AppRecord, type PlanRecord, type ShopRecord } from "./supabase.server";
 import { resolveShopFromRequest } from "./subdomain";
 import { readSessionFromCookies } from "./session";
-import { getOdooCompany, updateOdooCompany } from "./odoo";
+import { getOdooCompany, updateOdooCompany, getPosConfigId } from "./odoo";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Get shop + plan + allowed apps for dashboard rendering
@@ -137,4 +137,21 @@ export const getDevShopsFn = createServerFn({ method: "GET" }).handler(async () 
     .order("created_at", { ascending: false });
   return shops ?? [];
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Get POS config ID for opening checkout register without onboarding wizard
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const getPosConfigIdFn = createServerFn({ method: "GET" })
+  .validator((raw: unknown) =>
+    z.object({ db: z.string().min(1) }).parse(raw)
+  )
+  .handler(async ({ data }) => {
+    const request = getRequest();
+    const session = readSessionFromCookies(request.headers.get("cookie"));
+    if (!session || session.odooDb !== data.db) {
+      throw new Error("Not authenticated for this shop DB");
+    }
+    return await getPosConfigId(data.db);
+  });
 
