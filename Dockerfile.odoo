@@ -1,0 +1,5 @@
+FROM odoo:18.0
+
+USER root
+RUN pip install --no-cache-dir python-barcode --break-system-packages || pip install --no-cache-dir python-barcode
+USER odoo

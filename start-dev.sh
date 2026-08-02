@@ -42,7 +42,7 @@ fi
 
 # 2. Start Odoo containers
 echo -e "${YELLOW}[2/3]${NC} Starting Odoo Docker containers..."
-docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d
+docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d --build
 echo -e "${GREEN}✅ Odoo running at http://localhost:8069${NC}"
 echo -e "   Master password: superadmin"
 
