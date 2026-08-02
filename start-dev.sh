@@ -76,6 +76,16 @@ if [[ "$1" == "--add-hosts" ]]; then
   echo -e "${GREEN}✅ Hosts entries added${NC}"
 fi
 
+# Check Linux inotify file watch limit (prevent ENOSPC errors)
+if [ -f /proc/sys/fs/inotify/max_user_watches ]; then
+  CURRENT_WATCHES=$(cat /proc/sys/fs/inotify/max_user_watches 2>/dev/null || echo 0)
+  if [ "$CURRENT_WATCHES" -lt 100000 ]; then
+    # Try non-interactive sudo increase first, otherwise warn
+    sudo -n sysctl fs.inotify.max_user_watches=524288 2>/dev/null || \
+      echo -e "${YELLOW}⚠️  inotify max_user_watches is low ($CURRENT_WATCHES). If you see ENOSPC errors, run:\n   sudo sysctl fs.inotify.max_user_watches=524288${NC}"
+  fi
+fi
+
 echo -e "\n${YELLOW}[3/3]${NC} Starting web apps..."
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "  ${BOLD}Admin Panel${NC}  → http://localhost:3000"

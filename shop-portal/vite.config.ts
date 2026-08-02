@@ -42,6 +42,18 @@ export default defineConfig({
 
   server: {
     port: 3001,
+    watch: {
+      ignored: [
+        "**/node_modules/**",
+        "**/.git/**",
+        "**/.gemini/**",
+        "**/.system_generated/**",
+        "**/dist/**",
+        "**/.output/**",
+        "**/.vinxi/**",
+        "**/*.zip",
+      ],
+    },
     // IMPORTANT: Use 127.0.0.1 (not localhost) — Node.js 17+ resolves "localhost"
     // as IPv6 ::1 first, but the Odoo Docker container only listens on IPv4 0.0.0.0.
     // Using the literal IPv4 address avoids 502 ETIMEDOUT errors in the proxy.

@@ -12,4 +12,18 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  server: {
+    watch: {
+      ignored: [
+        "**/node_modules/**",
+        "**/.git/**",
+        "**/.gemini/**",
+        "**/.system_generated/**",
+        "**/dist/**",
+        "**/.output/**",
+        "**/.vinxi/**",
+        "**/*.zip",
+      ],
+    },
+  },
 });
