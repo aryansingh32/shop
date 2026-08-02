@@ -620,7 +620,7 @@ export async function odooCreateLoyaltyProgram(db: string): Promise<number> {
   // Find the main company ID — same lookup pattern as odooCreatePosConfig.
   const companies = await odooAdminExecute<{ id: number; name: string }[]>(
     db, "res.company", "search_read",
-    [[[" id", ">", 0]]],
+    [[[ "id", ">", 0]]],
     { fields: ["id", "name"], limit: 1 }
   );
   const companyId = companies.length > 0 ? companies[0].id : 1;

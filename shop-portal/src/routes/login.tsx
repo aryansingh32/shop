@@ -35,9 +35,10 @@ function LoginPage() {
       const result = await doLogin({ data: { login: submittedLogin, password: submittedPassword } });
       if (result?.token) {
         const expires = new Date(result.expiresAt).toUTCString();
-        document.cookie = `${result.cookieName}=${result.token}; Path=/; SameSite=Lax; Expires=${expires}`;
+        const secureFlag = window.location.protocol === "https:" ? "; Secure" : "";
+        document.cookie = `${result.cookieName}=${result.token}; Path=/; SameSite=Strict; Expires=${expires}${secureFlag}`;
         if (result.odooSessionId) {
-          document.cookie = `session_id=${result.odooSessionId}; Path=/; SameSite=Lax; Expires=${expires}`;
+          document.cookie = `session_id=${result.odooSessionId}; Path=/; SameSite=Lax; Expires=${expires}${secureFlag}`;
         }
         window.location.href = "/dashboard";
       } else {

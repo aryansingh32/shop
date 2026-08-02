@@ -292,6 +292,15 @@ export async function resolveGroupIdsForSlugs(db: string, slugs: string[]): Prom
   return extIds.map((id) => lookup.get(id)).filter((id): id is number => id !== undefined);
 }
 
+async function getBaseUserGroupId(db: string): Promise<number | undefined> {
+  const ext = await odooAdminExecute<Array<{ res_id: number }>>(
+    db, "ir.model.data", "search_read",
+    [[["module", "=", "base"], ["name", "=", "group_user"]]],
+    { fields: ["res_id"], limit: 1 }
+  );
+  return ext[0]?.res_id;
+}
+
 /** Create a new employee res.user with access to specified app slugs. */
 export async function createEmployee(
   db: string,
@@ -302,12 +311,7 @@ export async function createEmployee(
 ): Promise<number> {
   const groupIds = await resolveGroupIdsForSlugs(db, appSlugs);
   // Add base internal user group (required for all employees)
-  const baseUserExtId = await odooAdminExecute<Array<{ res_id: number }>>(
-    db, "ir.model.data", "search_read",
-    [[["module", "=", "base"], ["name", "=", "group_user"]]],
-    { fields: ["res_id"], limit: 1 }
-  );
-  const baseGroupId = baseUserExtId[0]?.res_id;
+  const baseGroupId = await getBaseUserGroupId(db);
   const allGroupIds = [...new Set([...(baseGroupId ? [baseGroupId] : []), ...groupIds])];
 
   return odooAdminExecute<number>(db, "res.users", "create", [{
@@ -330,9 +334,24 @@ export async function updateEmployee(
   if (patch.name) vals.name = patch.name;
   if (patch.password) vals.password = patch.password;
   if (patch.appSlugs) {
-    const groupIds = await resolveGroupIdsForSlugs(db, patch.appSlugs);
-    // Replace all groups: first clear (5 = unlink all), then set new
-    vals.groups_id = [[5, 0, 0], ...groupIds.map((id) => [4, id, 0])];
+    const allManagedGroupIds = await resolveGroupIdsForSlugs(db, Object.keys(APP_ODOO_GROUPS));
+    const selectedGroupIds = await resolveGroupIdsForSlugs(db, patch.appSlugs);
+    const baseGroupId = await getBaseUserGroupId(db);
+
+    // Selectively unlink only managed app groups that are not selected,
+    // link selected app groups, and ensure base.group_user is always present.
+    const toRemove = allManagedGroupIds.filter((id) => !selectedGroupIds.includes(id));
+    const groupCommands: Array<[number, number, number]> = [];
+    for (const id of toRemove) {
+      groupCommands.push([3, id, 0]); // Unlink removed app group without touching other groups
+    }
+    for (const id of selectedGroupIds) {
+      groupCommands.push([4, id, 0]); // Link selected app group
+    }
+    if (baseGroupId) {
+      groupCommands.push([4, baseGroupId, 0]); // Ensure base.group_user (Internal User) is linked
+    }
+    vals.groups_id = groupCommands;
   }
   if (Object.keys(vals).length === 0) return;
   await odooAdminExecute(db, "res.users", "write", [[userId], vals]);
@@ -496,7 +515,7 @@ export async function getLoyaltyBalanceForCustomer(
       db,
       "loyalty.card",
       "search_read",
-      [[[" partner_id", "=", partnerId]]],
+      [[["partner_id", "=", partnerId]]],
       { fields: ["id", "points"] },
     );
 
