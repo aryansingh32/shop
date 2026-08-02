@@ -81,6 +81,7 @@ export async function provisionShop(
   moduleNames: string[],
   businessTypeSlug?: string,
 ): Promise<ProvisionResult | ProvisionError> {
+  let dbCreated = false;
   try {
     // Safety check — don't overwrite an existing database
     const exists = await odooDbExists(dbName);
@@ -93,6 +94,7 @@ export async function provisionShop(
     // Step 1: Create the database using the Platform Admin credentials
     // This ensures our Super Admin Panel always has a backdoor to manage the shop via RPC.
     await odooDbCreate(dbName, ADMIN_LOGIN, ADMIN_PASSWORD, "en_IN", "IN");
+    dbCreated = true;
 
     // Step 2: Install plan modules.
     // Always include these regardless of plan tier:
@@ -195,6 +197,14 @@ export async function provisionShop(
       installedModules: installed.map((m) => m.name),
     };
   } catch (err) {
+    if (dbCreated) {
+      try {
+        console.warn(`[provisionShop] Provisioning failed for ${dbName}. Cleaning up incomplete database...`);
+        await odooDbDrop(dbName);
+      } catch (dropErr) {
+        console.error(`[provisionShop] Failed to clean up incomplete database ${dbName}:`, dropErr);
+      }
+    }
     return {
       success: false,
       error: err instanceof Error ? err.message : String(err),
