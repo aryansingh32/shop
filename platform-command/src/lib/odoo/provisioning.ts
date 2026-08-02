@@ -98,14 +98,24 @@ export async function provisionShop(
 
     // Step 2: Install plan modules.
     // Always include these regardless of plan tier:
-    //   - l10n_in:       India GST localization (mandatory for all Indian shops)
-    //   - barcodes:      barcode scanning support (core checkout capability)
-    //   - kirana_rebrand: strips Odoo branding from the web client and POS customer display.
-    //                    The addon lives in custom_addons/ and is mounted into the Odoo
-    //                    container via docker-compose. It depends on 'web', 'point_of_sale',
-    //                    and 'stock' — satisfied by both Standard and Premium plans.
-    // Base module set: always include localization, barcode support, and white-label addon.
-    let allModules = new Set(["l10n_in", "barcodes", "kirana_rebrand", ...moduleNames]);
+    //   - l10n_in:                         India GST localization (mandatory for all Indian shops)
+    //   - barcodes:                         Odoo core barcode scanning infrastructure
+    //   - kirana_rebrand:                   strips Odoo branding (custom_addons/)
+    //   - barcodes_generator_abstract:      OCA barcode generation engine (custom_addons/)
+    //   - barcodes_generator_product:       Adds "Generate Barcode" button to product cards (custom_addons/)
+    //   - stock_picking_product_barcode_report: OCA barcode label printing for stock moves (custom_addons/)
+    // REVIEWER CHECKLIST: every new custom addon mounted via docker-compose MUST have a line here.
+    // This is the second time this class of bug occurred (first: kirana_rebrand). Do not break the pattern.
+    let allModules = new Set([
+      "l10n_in",
+      "barcodes",
+      "kirana_rebrand",
+      // OCA barcode generation — always on so every shop can print product labels
+      "barcodes_generator_abstract",
+      "barcodes_generator_product",
+      "stock_picking_product_barcode_report",
+      ...moduleNames,
+    ]);
 
     // Feature 1 — Business-Type Templates:
     // If a businessTypeSlug is provided, look up the template and merge its
@@ -277,14 +287,24 @@ export async function reactivateShopOdoo(
  * merchant-driven app toggles (Feature 5 marketplace).
  *
  * These are platform infrastructure — removing them would break core functionality:
- *   l10n_in:       India GST localization — mandatory for all Indian shops
- *   barcodes:      barcode scanning support — hardcoded into every new provisioning
- *   kirana_rebrand: our white-label addon — removing it exposes Odoo branding
+ *   l10n_in:                             India GST localization — mandatory for all Indian shops
+ *   barcodes:                            Odoo core barcode scanning support
+ *   kirana_rebrand:                      white-label addon — removing it exposes Odoo branding
+ *   barcodes_generator_abstract:         OCA barcode generation engine (depends on 'barcodes')
+ *   barcodes_generator_product:          OCA product barcode button
+ *   stock_picking_product_barcode_report: OCA barcode label printing for deliveries
  *
  * Exported so the Feature 5 marketplace toggle function can import this exact
  * set instead of redefining it — single source of truth.
  */
-export const PINNED_MODULES = new Set(["l10n_in", "barcodes", "kirana_rebrand"]);
+export const PINNED_MODULES = new Set([
+  "l10n_in",
+  "barcodes",
+  "kirana_rebrand",
+  "barcodes_generator_abstract",
+  "barcodes_generator_product",
+  "stock_picking_product_barcode_report",
+]);
 
 /**
  * Sync installed Odoo modules when a shop changes plan.

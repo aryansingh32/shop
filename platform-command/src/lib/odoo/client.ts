@@ -532,6 +532,39 @@ export async function odooCreatePosConfig(
     ? [paymentMethods[0].id]
     : [];
 
+  // Create a UPI payment method.
+  // This is a static, manual-confirm method — no payment gateway required.
+  // Mirrors how 99% of small Indian retailers use UPI today: a static QR code
+  // sticker at the counter, customer pays peer-to-peer, cashier marks as paid.
+  // is_cash_count = false → non-cash (no denomination counting at session close)
+  let upiPaymentMethodId: number | null = null;
+  try {
+    // Check if a UPI method already exists (idempotent re-runs)
+    const existingUpi = await odooAdminExecute<{ id: number }[]>(
+      db, "pos.payment.method", "search_read",
+      [[["name", "=", "UPI"]]],
+      { fields: ["id"], limit: 1 }
+    );
+    if (existingUpi.length > 0) {
+      upiPaymentMethodId = existingUpi[0].id;
+    } else {
+      upiPaymentMethodId = await odooAdminExecute<number>(
+        db, "pos.payment.method", "create",
+        [{ name: "UPI", is_cash_count: false, company_id: companyId }]
+      );
+    }
+  } catch (upiErr) {
+    // Non-fatal: UPI failure must not block a shop from going live.
+    // Cash alone is sufficient for a working POS session.
+    console.warn(`[odooCreatePosConfig] Failed to create UPI payment method on ${db} (non-fatal):`, upiErr);
+  }
+
+  // Build the combined payment method ID list: Cash + UPI (if created)
+  const allPaymentMethodIds = [
+    ...cashPaymentMethodIds,
+    ...(upiPaymentMethodId !== null ? [upiPaymentMethodId] : []),
+  ];
+
   // Create the POS config.
   // Minimal values: only what's needed for a working checkout.
   // Restaurant / multi-POS / IoT settings are explicitly disabled.
@@ -544,9 +577,9 @@ export async function odooCreatePosConfig(
     module_pos_hr: false,
   };
 
-  if (cashPaymentMethodIds.length > 0) {
+  if (allPaymentMethodIds.length > 0) {
     // many2many replace command: [(6, 0, [ids])]
-    configVals.payment_method_ids = [[6, 0, cashPaymentMethodIds]];
+    configVals.payment_method_ids = [[6, 0, allPaymentMethodIds]];
   }
 
   const configId = await odooAdminExecute<number>(
