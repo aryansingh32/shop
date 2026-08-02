@@ -240,7 +240,7 @@ function SidebarNav({ session }: { session: ShopSession }) {
 
   // Filter items to only those the session can access.
   // Always-visible items (requiredAppSlugs: []) are always included.
-  const visibleItems = filterNavGroups(session.allowedAppSlugs);
+  const visibleItems = filterNavGroups(session.allowedAppSlugs, session.isOwner);
 
   return (
     <nav style={{ display: "flex", flexDirection: "column", gap: 0 }} aria-label="Main navigation">

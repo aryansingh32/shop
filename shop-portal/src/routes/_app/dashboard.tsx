@@ -368,7 +368,6 @@ function MetricCard({
 function AppCard({ app }: { app: { id: string; slug: string; name: string; icon: string | null; description: string | null } }) {
   const colors = ICON_COLORS[app.slug] ?? { bg: "var(--color-accent)", fg: "var(--color-primary)", shadow: "oklch(0 0 0 / 10%)" };
   const path = APP_ODOO_PATHS[app.slug];
-  const isComingSoon = path === COMING_SOON_SENTINEL;
 
   const content = (
     <div
@@ -377,7 +376,6 @@ function AppCard({ app }: { app: { id: string; slug: string; name: string; icon:
         padding: "1.25rem 1.125rem 1rem",
         display: "flex", flexDirection: "column",
         minHeight: "150px", position: "relative",
-        opacity: isComingSoon ? 0.8 : 1,
       }}
     >
       {/* Icon */}
@@ -404,18 +402,8 @@ function AppCard({ app }: { app: { id: string; slug: string; name: string; icon:
         )}
       </div>
 
-      {/* Coming soon badge OR chevron */}
-      {isComingSoon ? (
-        <div style={{
-          position: "absolute", bottom: "0.875rem", right: "0.875rem",
-          background: "oklch(0.88 0.05 200)", color: "oklch(0.42 0.16 200)",
-          fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.06em",
-          textTransform: "uppercase", borderRadius: "999px",
-          padding: "0.2em 0.55em",
-        }}>
-          Coming soon
-        </div>
-      ) : (
+      {/* Chevron */}
+      {path && (
         <div style={{ position: "absolute", bottom: "1rem", right: "0.875rem", color: "var(--color-border-strong)" }}>
           <ChevronRight size={16} />
         </div>
@@ -423,11 +411,10 @@ function AppCard({ app }: { app: { id: string; slug: string; name: string; icon:
     </div>
   );
 
-  if (path && !isComingSoon) {
+  if (path) {
     return <Link to="/open-app/$slug" params={{ slug: app.slug }}>{content}</Link>;
   }
-  // Coming soon or no path — render as non-navigable card
-  return <div style={{ cursor: isComingSoon ? "default" : "not-allowed" }}>{content}</div>;
+  return <div style={{ cursor: "not-allowed" }}>{content}</div>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

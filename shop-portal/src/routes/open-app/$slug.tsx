@@ -40,9 +40,24 @@ const ODOO_HIDE_CHROME_CSS = `
   /* Hide home menu / app switcher overlay */
   .o_home_menu_container, .o_home_menu, .o_home_menu_backdrop { display: none !important; }
 
-  /* Hide Odoo logo marks */
+  /* Hide Odoo logo marks — backend and POS */
   .o_home_menu_logo, .o_menu_brand > img, img[src*="odoo-logo"],
-  img[alt="Odoo"], img[title="Odoo"] { display: none !important; }
+  img[alt="Odoo"], img[title="Odoo"],
+  /* POS Odoo logo component (OWL — all known wrappers) */
+  .pos-sale .odoo-logo, .pos-receipt .powered-by-odoo,
+  .pos-receipt .pos-receipt-logo img[src*="odoo"],
+  /* The kirana_rebrand addon removes the SVG inside this div — belt-and-suspenders */
+  [class*="odoo-logo"], [class*="OdooLogo"] { display: none !important; }
+
+  /* Hide "Add your company logo" / company logo placeholder.
+     Odoo shows this placeholder in receipts and POS when res.company.logo is not set.
+     Classes verified against: addons/web/static/src/views/fields/image/image_field.xml */
+  .o_field_image .o_image_placeholder,
+  .o_field_image_url .o_image_placeholder,
+  .o_company_logo_placeholder,
+  /* POS receipt company logo area when empty */
+  .pos-receipt .company-logo:empty,
+  .pos-receipt .receipt-logo:empty { display: none !important; }
 
   /* Hide "Powered by Odoo" + Odoo.com links */
   .o_powered_by_odoo, [data-name="powered_by_odoo"],
@@ -55,9 +70,7 @@ const ODOO_HIDE_CHROME_CSS = `
   .o_about_dialog .o_odoo_branding, .o_odoo_version_info,
   .o_dialog_body img[src*="odoo"] { display: none !important; }
 
-  /* Hide chatter / messaging panel (mail.thread mixin — present on most forms).
-     This mirrors the global rule in kirana_rebrand/static/src/css/rebrand.css §11.
-     Belt-and-suspenders: applied here at runtime before the addon CSS loads. */
+  /* Hide chatter / messaging panel (mail.thread mixin — present on most forms). */
   .o-mail-Chatter, .o-mail-ChatterPanel,
   .o_chatter, .o_chatter_container, .o_FormRenderer_chatterContainer,
   .o-mail-Thread, .o-mail-MessageList,
@@ -66,7 +79,28 @@ const ODOO_HIDE_CHROME_CSS = `
   /* Reclaim width when chatter is hidden */
   .o_form_view .o_form_sheet_bg { padding-right: 0 !important; }
   .o_form_view .o_form_sheet { max-width: 100% !important; }
+
+  /* Smart buttons — navigate out of current app (e.g. "10 Deliveries" → stock.picking) */
+  .o_stat_button, .oe_stat_button { display: none !important; }
+
+  /* Breadcrumb nav — disable intermediate crumb links (only show current record name) */
+  .o_breadcrumb .o_back_button,
+  .o_breadcrumb .breadcrumb-item:not(:last-child) a,
+  .o_breadcrumb .breadcrumb-item:not(:last-child) button {
+    pointer-events: none !important;
+    cursor: default !important;
+    color: #999 !important;
+    text-decoration: none !important;
+  }
+
+  /* Action menu — hide Export, Import, Archive, Duplicate from the ⋮ dropdown */
+  .o_cp_action_menus .dropdown-item[aria-label*="Export"],
+  .o_cp_action_menus .dropdown-item[aria-label*="Import"],
+  .o_cp_action_menus .dropdown-item[aria-label*="Archive"],
+  .o_cp_action_menus .dropdown-item[aria-label*="Unarchive"],
+  .o_cp_action_menus .dropdown-item[aria-label*="Duplicate"] { display: none !important; }
 `;
+
 
 // ── Route ──────────────────────────────────────────────────────────────────
 
@@ -108,7 +142,7 @@ export const Route = createFileRoute("/open-app/$slug")({
       iframeSrc = `${basePath}?db=${db}`;
     }
 
-    return { session, iframeSrc };
+    return { session, iframeSrc, odooSessionId: session.odooSessionId };
   },
   component: OpenAppPage,
 });
@@ -117,14 +151,26 @@ export const Route = createFileRoute("/open-app/$slug")({
 
 function OpenAppPage() {
   const { slug } = Route.useParams();
-  const { iframeSrc } = Route.useLoaderData();
+  const { iframeSrc, odooSessionId } = Route.useLoaderData();
   const navigate = useNavigate();
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  // iframeSrc is pre-built by the loader (includes db + config_id for POS)
+  // Re-apply the Odoo session_id cookie immediately before the iframe loads.
+  // This ensures Odoo receives the CURRENT user's session — not a stale or
+  // expired one — so the cashier/employee is logged into the correct account.
+  // Without this, if the user opened a different shop tab or if the cookie
+  // expired in the background, Odoo would fall back to the anonymous/demo user.
+  useEffect(() => {
+    if (!odooSessionId) return;
+    // Refresh the session_id cookie scoped to Path=/ so all proxied Odoo paths receive it.
+    // SameSite=Lax (not Strict) is required because Odoo's redirect flows need to carry it.
+    const maxAge = 8 * 60 * 60; // 8 hours, same as SESSION_MAX_AGE_SECONDS
+    document.cookie = `session_id=${odooSessionId}; Path=/; SameSite=Lax; Max-Age=${maxAge}`;
+  }, [odooSessionId]);
+
 
   function injectChromeHidingStyles() {
     try {

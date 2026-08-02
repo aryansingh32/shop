@@ -35,6 +35,11 @@ export interface NavGroup {
    * Non-empty = item hidden unless at least one slug is in session.allowedAppSlugs.
    */
   requiredAppSlugs: string[];
+  /**
+   * If true, this item is always visible to shop owners regardless of
+   * requiredAppSlugs (e.g. Team management — always an owner concern).
+   */
+  ownerAlways?: boolean;
   /** Full TanStack Router route path (e.g. "/dashboard", "/open-app/$slug") */
   route: string;
   /**
@@ -113,13 +118,18 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     key: "staff",
-    label: "Staff",
+    label: "Team",
     iconName: "Users",
     emoji: "👨‍💼",
+    // ownerAlways: Team management is always available to owners — they need
+    // to create employees even if the Odoo 'employees' module isn't installed.
+    // filterNavGroups() checks this flag alongside isOwner.
     requiredAppSlugs: ["employees"],
-    route: "/open-app/$slug",
-    appSlug: "employees",
-    description: "Employee profiles, roles, and attendance",
+    ownerAlways: true,
+    // Portal-native route — the Team page lives in our portal (/employees),
+    // not in Odoo. It manages Odoo res.users via our API but has its own UI.
+    route: "/employees",
+    description: "Add staff and manage which apps they can access",
   },
   {
     key: "apps",
@@ -145,12 +155,14 @@ export const NAV_GROUPS: NavGroup[] = [
  * Filter NAV_GROUPS to only items the current session is allowed to see.
  *
  * @param allowedAppSlugs  The session's allowed app slugs
+ * @param isOwner          Whether the current user is a shop owner
  * @returns                Filtered ordered subset of NAV_GROUPS
  */
-export function filterNavGroups(allowedAppSlugs: string[]): NavGroup[] {
+export function filterNavGroups(allowedAppSlugs: string[], isOwner = false): NavGroup[] {
   return NAV_GROUPS.filter(
     (item) =>
       item.requiredAppSlugs.length === 0 ||
+      (item.ownerAlways && isOwner) ||
       item.requiredAppSlugs.some((slug) => allowedAppSlugs.includes(slug)),
   );
 }

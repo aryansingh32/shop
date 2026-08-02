@@ -79,11 +79,14 @@ export const APP_ODOO_PATHS: Record<string, string> = {
   // 'purchase' is the registered path for purchase.purchase_rfq in the purchase module.
   purchase: "/odoo/purchase",
 
-  // barcodes — a dedicated scan-first experience is coming. Until the OCA
-  // stock_picking_product_barcode_report UI is surfaced in the portal, the
-  // card should show "Coming soon" instead of being a dead greyed-out link.
-  // The __coming_soon__ sentinel is handled in AppCard in dashboard.tsx.
-  barcodes: "__coming_soon__",
+  // barcodes — OCA's barcodes_generator_product addon adds a "Generate Barcode"
+  // button directly to the Inventory product form (product.template). There is
+  // no standalone barcode scanner app; scanning capability is embedded in POS
+  // (camera or USB scanner) and Inventory. Routing the "Barcodes" app card to
+  // the same Inventory product list lets owners reach the barcode generation
+  // feature without a separate route. The OCA stock_picking_product_barcode_report
+  // module adds label-printing to stock pickings (accessible from that screen).
+  barcodes: "/odoo/action-stock.product_template_action_product",
 };
 
 /**
