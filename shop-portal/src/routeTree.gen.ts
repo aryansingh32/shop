@@ -13,14 +13,14 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as TestResolveRouteImport } from './routes/test-resolve'
+import { Route as AppAppsMarketplaceRouteImport } from './routes/_app/apps-marketplace'
+import { Route as AppCustomersRouteImport } from './routes/_app/customers'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppEmployeesRouteImport } from './routes/_app/employees'
+import { Route as AppGrowRouteImport } from './routes/_app/grow'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppShopSettingsRouteImport } from './routes/_app/shop-settings'
 import { Route as AppSubscriptionRouteImport } from './routes/_app/subscription'
-import { Route as AppCustomersRouteImport } from './routes/_app/customers'
-import { Route as AppGrowRouteImport } from './routes/_app/grow'
-import { Route as AppAppsMarketplaceRouteImport } from './routes/_app/apps-marketplace'
 import { Route as OpenAppSlugRouteImport } from './routes/open-app/$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -42,6 +42,16 @@ const TestResolveRoute = TestResolveRouteImport.update({
   path: '/test-resolve',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppAppsMarketplaceRoute = AppAppsMarketplaceRouteImport.update({
+  id: '/apps-marketplace',
+  path: '/apps-marketplace',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCustomersRoute = AppCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -50,6 +60,11 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
 const AppEmployeesRoute = AppEmployeesRouteImport.update({
   id: '/employees',
   path: '/employees',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppGrowRoute = AppGrowRouteImport.update({
+  id: '/grow',
+  path: '/grow',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProfileRoute = AppProfileRouteImport.update({
@@ -67,21 +82,6 @@ const AppSubscriptionRoute = AppSubscriptionRouteImport.update({
   path: '/subscription',
   getParentRoute: () => AppRoute,
 } as any)
-const AppCustomersRoute = AppCustomersRouteImport.update({
-  id: '/customers',
-  path: '/customers',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppGrowRoute = AppGrowRouteImport.update({
-  id: '/grow',
-  path: '/grow',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppAppsMarketplaceRoute = AppAppsMarketplaceRouteImport.update({
-  id: '/apps-marketplace',
-  path: '/apps-marketplace',
-  getParentRoute: () => AppRoute,
-} as any)
 const OpenAppSlugRoute = OpenAppSlugRouteImport.update({
   id: '/open-app/$slug',
   path: '/open-app/$slug',
@@ -92,28 +92,28 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/test-resolve': typeof TestResolveRoute
+  '/apps-marketplace': typeof AppAppsMarketplaceRoute
+  '/customers': typeof AppCustomersRoute
   '/dashboard': typeof AppDashboardRoute
   '/employees': typeof AppEmployeesRoute
+  '/grow': typeof AppGrowRoute
   '/profile': typeof AppProfileRoute
   '/shop-settings': typeof AppShopSettingsRoute
   '/subscription': typeof AppSubscriptionRoute
-  '/customers': typeof AppCustomersRoute
-  '/grow': typeof AppGrowRoute
-  '/apps-marketplace': typeof AppAppsMarketplaceRoute
   '/open-app/$slug': typeof OpenAppSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/test-resolve': typeof TestResolveRoute
+  '/apps-marketplace': typeof AppAppsMarketplaceRoute
+  '/customers': typeof AppCustomersRoute
   '/dashboard': typeof AppDashboardRoute
   '/employees': typeof AppEmployeesRoute
+  '/grow': typeof AppGrowRoute
   '/profile': typeof AppProfileRoute
   '/shop-settings': typeof AppShopSettingsRoute
   '/subscription': typeof AppSubscriptionRoute
-  '/customers': typeof AppCustomersRoute
-  '/grow': typeof AppGrowRoute
-  '/apps-marketplace': typeof AppAppsMarketplaceRoute
   '/open-app/$slug': typeof OpenAppSlugRoute
 }
 export interface FileRoutesById {
@@ -122,14 +122,14 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/test-resolve': typeof TestResolveRoute
+  '/_app/apps-marketplace': typeof AppAppsMarketplaceRoute
+  '/_app/customers': typeof AppCustomersRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/employees': typeof AppEmployeesRoute
+  '/_app/grow': typeof AppGrowRoute
   '/_app/profile': typeof AppProfileRoute
   '/_app/shop-settings': typeof AppShopSettingsRoute
   '/_app/subscription': typeof AppSubscriptionRoute
-  '/_app/customers': typeof AppCustomersRoute
-  '/_app/grow': typeof AppGrowRoute
-  '/_app/apps-marketplace': typeof AppAppsMarketplaceRoute
   '/open-app/$slug': typeof OpenAppSlugRoute
 }
 export interface FileRouteTypes {
@@ -138,28 +138,28 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/test-resolve'
+    | '/apps-marketplace'
+    | '/customers'
     | '/dashboard'
     | '/employees'
+    | '/grow'
     | '/profile'
     | '/shop-settings'
     | '/subscription'
-    | '/customers'
-    | '/grow'
-    | '/apps-marketplace'
     | '/open-app/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/test-resolve'
+    | '/apps-marketplace'
+    | '/customers'
     | '/dashboard'
     | '/employees'
+    | '/grow'
     | '/profile'
     | '/shop-settings'
     | '/subscription'
-    | '/customers'
-    | '/grow'
-    | '/apps-marketplace'
     | '/open-app/$slug'
   id:
     | '__root__'
@@ -167,14 +167,14 @@ export interface FileRouteTypes {
     | '/_app'
     | '/login'
     | '/test-resolve'
+    | '/_app/apps-marketplace'
+    | '/_app/customers'
     | '/_app/dashboard'
     | '/_app/employees'
+    | '/_app/grow'
     | '/_app/profile'
     | '/_app/shop-settings'
     | '/_app/subscription'
-    | '/_app/customers'
-    | '/_app/grow'
-    | '/_app/apps-marketplace'
     | '/open-app/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -216,6 +216,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TestResolveRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/apps-marketplace': {
+      id: '/_app/apps-marketplace'
+      path: '/apps-marketplace'
+      fullPath: '/apps-marketplace'
+      preLoaderRoute: typeof AppAppsMarketplaceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/customers': {
+      id: '/_app/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof AppCustomersRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/dashboard': {
       id: '/_app/dashboard'
       path: '/dashboard'
@@ -228,6 +242,13 @@ declare module '@tanstack/react-router' {
       path: '/employees'
       fullPath: '/employees'
       preLoaderRoute: typeof AppEmployeesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/grow': {
+      id: '/_app/grow'
+      path: '/grow'
+      fullPath: '/grow'
+      preLoaderRoute: typeof AppGrowRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/profile': {
@@ -251,27 +272,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSubscriptionRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/customers': {
-      id: '/_app/customers'
-      path: '/customers'
-      fullPath: '/customers'
-      preLoaderRoute: typeof AppCustomersRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/grow': {
-      id: '/_app/grow'
-      path: '/grow'
-      fullPath: '/grow'
-      preLoaderRoute: typeof AppGrowRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/apps-marketplace': {
-      id: '/_app/apps-marketplace'
-      path: '/apps-marketplace'
-      fullPath: '/apps-marketplace'
-      preLoaderRoute: typeof AppAppsMarketplaceRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/open-app/$slug': {
       id: '/open-app/$slug'
       path: '/open-app/$slug'
@@ -283,25 +283,25 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAppsMarketplaceRoute: typeof AppAppsMarketplaceRoute
+  AppCustomersRoute: typeof AppCustomersRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppEmployeesRoute: typeof AppEmployeesRoute
+  AppGrowRoute: typeof AppGrowRoute
   AppProfileRoute: typeof AppProfileRoute
   AppShopSettingsRoute: typeof AppShopSettingsRoute
   AppSubscriptionRoute: typeof AppSubscriptionRoute
-  AppCustomersRoute: typeof AppCustomersRoute
-  AppGrowRoute: typeof AppGrowRoute
-  AppAppsMarketplaceRoute: typeof AppAppsMarketplaceRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAppsMarketplaceRoute: AppAppsMarketplaceRoute,
+  AppCustomersRoute: AppCustomersRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppEmployeesRoute: AppEmployeesRoute,
+  AppGrowRoute: AppGrowRoute,
   AppProfileRoute: AppProfileRoute,
   AppShopSettingsRoute: AppShopSettingsRoute,
   AppSubscriptionRoute: AppSubscriptionRoute,
-  AppCustomersRoute: AppCustomersRoute,
-  AppGrowRoute: AppGrowRoute,
-  AppAppsMarketplaceRoute: AppAppsMarketplaceRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
