@@ -14,7 +14,7 @@
  */
 
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { ArrowLeft, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { getSessionFn } from "@/lib/auth.functions";
 import { APP_ODOO_PATHS } from "@/lib/config";
@@ -158,17 +158,33 @@ function OpenAppPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  // Re-apply the Odoo session_id cookie immediately before the iframe loads.
-  // This ensures Odoo receives the CURRENT user's session — not a stale or
-  // expired one — so the cashier/employee is logged into the correct account.
-  // Without this, if the user opened a different shop tab or if the cookie
-  // expired in the background, Odoo would fall back to the anonymous/demo user.
-  useEffect(() => {
-    if (!odooSessionId) return;
+  // ── Odoo session cookie — applied synchronously before first iframe paint ──
+  //
+  // THE BUG THIS FIXES:
+  //   The old code used useEffect, which fires *after* the browser paints.
+  //   Browsers commit iframe DOM nodes and fire the first network request in the
+  //   same task as the commit — before any useEffect runs. So the cookie
+  //   re-application was always a race the iframe could lose.
+  //
+  // THE FIX:
+  //   useLayoutEffect runs synchronously after DOM mutations but *before* the
+  //   browser paints. The iframe's src is initially null (no request goes out).
+  //   We set the cookie in useLayoutEffect, flip cookieReady → true in the same
+  //   synchronous run, and only then does the iframe receive its real src —
+  //   guaranteeing every single first request carries the correct session cookie.
+  const [cookieReady, setCookieReady] = useState(!odooSessionId); // skip gate if no session to apply
+
+  useLayoutEffect(() => {
+    if (!odooSessionId) {
+      setCookieReady(true);
+      return;
+    }
     // Refresh the session_id cookie scoped to Path=/ so all proxied Odoo paths receive it.
     // SameSite=Lax (not Strict) is required because Odoo's redirect flows need to carry it.
-    const maxAge = 8 * 60 * 60; // 8 hours, same as SESSION_MAX_AGE_SECONDS
+    const maxAge = 8 * 60 * 60; // 8 hours — same as SESSION_MAX_AGE_SECONDS
     document.cookie = `session_id=${odooSessionId}; Path=/; SameSite=Lax; Max-Age=${maxAge}`;
+    // Cookie is now written. Flip the gate so the iframe receives its src.
+    setCookieReady(true);
   }, [odooSessionId]);
 
 
@@ -357,11 +373,13 @@ function OpenAppPage() {
         </div>
       )}
 
-      {/* The iframe — loads the Odoo app, fully debranded */}
+      {/* The iframe — loads the Odoo app, fully debranded.
+          src is withheld until cookieReady=true (set synchronously in useLayoutEffect)
+          so the very first network request always carries the correct session_id cookie. */}
       {!error && (
         <iframe
           ref={iframeRef}
-          src={iframeSrc}
+          src={cookieReady ? iframeSrc : undefined}
           title={`${BRAND_NAME} app`}
           style={{
             flex: 1,

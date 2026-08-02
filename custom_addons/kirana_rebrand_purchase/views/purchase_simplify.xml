@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Kirana Platform — Purchase Screen Simplification
+
+    Destination: The "Purchase & Reordering" app card routes to /odoo/purchase,
+    which opens Odoo's Request-for-Quotation list (purchase.purchase_rfq).
+    That screen is built for procurement staff who negotiate vendor quotes before
+    committing to a purchase — full of RFQ/vendor-bill terminology (RFQ, Confirm
+    Order, Vendor, Receipt) that has no retail-native translation for a shop owner
+    who just needs to record "I received a delivery, add it to stock."
+
+    THIS FILE:
+      1. Disables dangerous bulk actions on the Purchase Orders list.
+      2. Hides advanced procurement fields from the PO form that are irrelevant
+         for a single-location retail shop (Incoterms, Analytic accounts, fiscal
+         position, currency if locked to INR, purchase representative).
+
+    WHAT IS KEPT (visible to shop owners):
+      - Purchase order list (what was ordered from which supplier)
+      - Supplier (partner_id), order date, expected delivery date
+      - Product lines (product, qty, unit price, tax)
+      - "Receive Products" button (the core action for a retail shop)
+      - Invoice status
+
+    WHAT IS HIDDEN AND WHY:
+
+    1. delete / export_xlsx / import on the PO list
+       Deleting a confirmed PO after goods are received leaves dangling stock
+       moves. Export exposes vendor pricing. Import of purchase orders in bulk
+       risks integrity issues.
+
+    2. Incoterms (incoterm_id)
+       International shipping terms. Irrelevant for domestic supplier purchases.
+
+    3. Fiscal Position (fiscal_position_id)
+       Multi-country VAT mapping. Irrelevant for a single-country Indian shop.
+
+    4. Purchase Representative (user_id on PO)
+       Internal procurement staff assignment — not meaningful for a solo shop owner.
+
+    MODEL TARGETS:
+      - purchase.order      (Purchase Orders / RFQ list + form)
+      - Inherits:
+          purchase.purchase_rfq      (the base PO list view)
+          purchase.purchase_form_view (the base PO form view)
+-->
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         1. Purchase Orders list — disable dangerous bulk actions
+         Ref: purchase.purchase_rfq (base PO list in purchase module)
+         Model: purchase.order
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="kirana_purchase_order_list_simplify" model="ir.ui.view">
+        <field name="name">kirana.purchase.order.list.simplify</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_rfq"/>
+        <field name="arch" type="xml">
+            <!-- Disable bulk-delete, export, and import on the purchase orders list.
+                 delete="0"      → confirmed POs with received goods must not be deleted
+                 export_xlsx="0" → vendor pricing/margin data should not leave the system
+                 import="0"      → bulk PO import bypasses validation and stock integrity -->
+            <xpath expr="//list" position="attributes">
+                <attribute name="delete">0</attribute>
+                <attribute name="export_xlsx">0</attribute>
+                <attribute name="import">0</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         2. Purchase Order form — hide irrelevant procurement fields
+         Ref: purchase.purchase_form_view (base PO form in purchase module)
+         Model: purchase.order
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="kirana_purchase_order_form_simplify" model="ir.ui.view">
+        <field name="name">kirana.purchase.order.form.simplify</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_form_view"/>
+        <field name="arch" type="xml">
+            <!-- Hide Incoterms — international shipping, irrelevant for domestic suppliers -->
+            <xpath expr="//field[@name='incoterm_id']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+            <!-- Hide Fiscal Position — multi-country VAT mapping, irrelevant for Indian retail -->
+            <xpath expr="//field[@name='fiscal_position_id']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+            <!-- Hide Purchase Representative — internal procurement assignment, not meaningful for solo owners -->
+            <xpath expr="//field[@name='user_id']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

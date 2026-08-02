@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Kirana Platform — Accounting Screen Simplification
+
+    Destination: The "Accounting & GST" app card routes to /odoo/accounting, which
+    opens Odoo's Accounting Journals Dashboard kanban (open_account_journal_dashboard_kanban).
+    That screen shows reconciliation counts, accountant-oriented actions, and all journal
+    types (Customer Invoices, Vendor Bills, Bank, Cash, Miscellaneous Operations) in a
+    kanban grid intended for accountants — not a single-counter retail shop owner.
+
+    This file re-routes the "accounting" app click to the Customer Invoices list
+    (account.action_move_out_invoice_type) — the most relevant landing for a retail
+    shop owner who wants to see what customers owe them, and disables dangerous
+    bulk actions on the invoices list.
+
+    WHAT IS KEPT (visible to shop owners):
+      - Customer Invoices list (what customers owe)
+      - Invoice form (amount, customer, products, payment status)
+      - "Register Payment" button on invoice form
+      - GST/tax columns (mandatory for Indian retail)
+
+    WHAT IS HIDDEN AND WHY:
+
+    1. delete / export_xlsx / import on the invoice list
+       Deletion of accounting records creates journal entry holes. Export exposes
+       revenue data. Import of invoices is a financial risk (bad data = wrong books).
+
+    2. Vendor Bills tab (hidden via CSS in rebrand.css — not an XML view override)
+       Vendor bills are managed via the Purchase module. Showing both in Accounting
+       confuses shop owners about where to record supplier invoices.
+
+    MODEL TARGETS:
+      - account.move (Customer Invoices list — type='out_invoice')
+      - Inherits: account.view_move_tree (the base invoice list view)
+-->
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         1. Customer Invoices list — disable dangerous bulk actions
+         Ref: account.view_move_tree (base invoice list in account module)
+         Model: account.move
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="kirana_account_move_list_simplify" model="ir.ui.view">
+        <field name="name">kirana.account.move.list.simplify</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_tree"/>
+        <field name="arch" type="xml">
+            <!-- Disable bulk-delete, export, and import on the invoice list.
+                 delete="0"      → prevents accidental deletion of posted invoices (irreversible in accounting)
+                 export_xlsx="0" → revenue data should not leave the system via export
+                 import="0"      → importing invoices in bulk risks corrupting the ledger -->
+            <xpath expr="//list" position="attributes">
+                <attribute name="delete">0</attribute>
+                <attribute name="export_xlsx">0</attribute>
+                <attribute name="import">0</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         2. Invoice form — hide irrelevant accountant fields
+         Ref: account.view_move_form (base invoice form in account module)
+         Model: account.move
+
+         HIDDEN:
+           - "Journal" field (shop owners don't need to change which journal an
+             invoice posts to — it's always Customer Invoices)
+           - "Fiscal Position" field (advanced tax mapping for multi-country VAT,
+             irrelevant for a single-country Indian shop)
+           - "Incoterms" field (international shipping terms — not retail)
+           - Accounting tab (journal entries — raw debit/credit lines, accountant-only)
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="kirana_account_move_form_simplify" model="ir.ui.view">
+        <field name="name">kirana.account.move.form.simplify</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <!-- Hide Journal field — shop owners should never need to change this -->
+            <xpath expr="//field[@name='journal_id']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+            <!-- Hide Fiscal Position — multi-country VAT mapping, irrelevant for Indian retail -->
+            <xpath expr="//field[@name='fiscal_position_id']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+            <!-- Hide Incoterms — international shipping, irrelevant -->
+            <xpath expr="//field[@name='invoice_incoterm_id']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+            <!-- Hide the raw Journal Items / Accounting tab (debit/credit ledger lines) -->
+            <xpath expr="//page[@name='invoice_tab']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

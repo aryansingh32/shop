@@ -117,6 +117,14 @@ export async function provisionShop(
       ...moduleNames,
     ]);
 
+    // Include Kirana bridge addons for optional apps if those apps are being installed
+    if (allModules.has("account")) {
+      allModules.add("kirana_rebrand_account");
+    }
+    if (allModules.has("purchase")) {
+      allModules.add("kirana_rebrand_purchase");
+    }
+
     // Feature 1 — Business-Type Templates:
     // If a businessTypeSlug is provided, look up the template and merge its
     // default_app_slugs into the install set. This is ADDITIVE — we never
@@ -325,6 +333,13 @@ export async function syncPlanModules(
   if (!exists) return { installed: [], uninstalled: [] };
 
   const toInstall = newModules.filter((m) => !oldModules.includes(m));
+  if (toInstall.includes("account") && !toInstall.includes("kirana_rebrand_account")) {
+    toInstall.push("kirana_rebrand_account");
+  }
+  if (toInstall.includes("purchase") && !toInstall.includes("kirana_rebrand_purchase")) {
+    toInstall.push("kirana_rebrand_purchase");
+  }
+
   const toUninstall = oldModules.filter((m) => !newModules.includes(m));
 
   const safeToUninstall = toUninstall.filter((m) => !PINNED_MODULES.has(m));
