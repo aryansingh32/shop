@@ -6,3 +6,4 @@ node_modules/
 .env
 node-v22/
 *.zip
+stock-logistics-barcode/
