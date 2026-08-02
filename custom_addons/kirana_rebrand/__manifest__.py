@@ -32,11 +32,12 @@
         at runtime so they can be changed without code modifications.
     """,
     'author': 'Kirana Platform',
-    'depends': ['web', 'point_of_sale', 'stock'],  # point_of_sale for pos_simplify.xml, stock for products_simplify.xml
+    'depends': ['web', 'point_of_sale', 'stock', 'barcodes_generator_product', 'stock_picking_product_barcode_report'],  # point_of_sale for pos_simplify.xml, stock for products_simplify.xml; OCA barcode modules for barcode generation and label printing
     'data': [
         'views/assets.xml',
         'views/pos_simplify.xml',
         'views/products_simplify.xml',
+        'views/inventory_simplify.xml',
         'data/ir_config_parameter.xml',
     ],
     'assets': {

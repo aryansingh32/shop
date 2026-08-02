@@ -213,3 +213,76 @@ body.o_web_client,
 .o_form_view .o_form_sheet {
     max-width: 100% !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   12. IFRAME NAVIGATION SANDBOXING — Smart Buttons
+   Smart buttons (the coloured pill-shaped buttons at the top of a form, e.g.
+   "10 Deliveries", "2 Receipts", "1 Invoice") navigate to related records in
+   other Odoo apps. A cashier tapping "Deliveries" lands on the stock.picking
+   list — a screen they were never meant to see.
+
+   WHY CSS (not xpath):
+   Smart buttons are OWL-rendered inside .o_form_sheet_bg by the mail/view
+   infrastracture, NOT from a server-side view arch. They cannot be removed
+   via a single xpath record — each button would need its own record, and new
+   modules add new buttons silently. One CSS rule covers all of them globally.
+
+   CLASS NAMES VERIFIED AGAINST:
+     addons/web/static/src/views/form/form_buttons.xml  (.oe_stat_button)
+     Odoo 18 calls them .o_stat_button / .oe_stat_button
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Hide all smart (stat) buttons — they navigate OUT of the current app */
+.o_stat_button,
+.oe_stat_button {
+    display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   13. IFRAME NAVIGATION SANDBOXING — Breadcrumb nav links
+   The breadcrumb trail (e.g. "Products / Laptop") lets users click parent
+   crumbs to navigate back to lists in arbitrary apps. We hide intermediate
+   crumb links so only the current page title (non-clickable) remains visible.
+   The last breadcrumb (current record) is NOT hidden — it provides context.
+
+   CLASS NAMES VERIFIED AGAINST:
+     addons/web/static/src/core/breadcrumbs/breadcrumbs.xml (.o_breadcrumb)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Hide breadcrumb items that are links (all except the last/current) */
+.o_breadcrumb .o_back_button,
+.o_breadcrumb .breadcrumb-item:not(:last-child) a,
+.o_breadcrumb .breadcrumb-item:not(:last-child) button {
+    pointer-events: none !important;
+    text-decoration: none !important;
+    cursor: default !important;
+    color: var(--color-foreground-muted, #888) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   14. IFRAME NAVIGATION SANDBOXING — List view action menu items
+   The ⋮ action menu in list views contains: Export, Import, Archive,
+   Unarchive, Duplicate. We hide the dangerous/irrelevant ones globally via
+   CSS here as a belt-and-suspenders layer.
+   
+   The authoritative control is the view-inheritance approach in
+   products_simplify.xml (delete="0" export_xlsx="0" import="0" duplicate="0")
+   — that disables the action at the server level. This CSS provides defence-
+   in-depth for any screen not yet covered by a view-inheritance record.
+
+   CLASS NAMES VERIFIED AGAINST:
+     addons/web/static/src/core/action_menus/action_menus.xml
+     Menu items use data-section and aria-label attributes in Odoo 18.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Hide Export and Import actions from the ⋮ dropdown globally */
+.o_cp_action_menus .dropdown-item[data-action*="export"],
+.o_cp_action_menus .dropdown-item[aria-label*="Export"],
+.o_cp_action_menus .dropdown-item[aria-label*="Import"],
+/* Archive and Unarchive are dangerous in a live retail DB */
+.o_cp_action_menus .dropdown-item[aria-label*="Archive"],
+.o_cp_action_menus .dropdown-item[aria-label*="Unarchive"],
+/* Duplicate — prevents accidental data duplication */
+.o_cp_action_menus .dropdown-item[aria-label*="Duplicate"] {
+    display: none !important;
+}

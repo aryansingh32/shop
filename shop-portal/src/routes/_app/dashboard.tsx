@@ -24,11 +24,14 @@ import { useState, useEffect } from "react";
 import {
   ShoppingCart, Package, TrendingUp, BookOpen, Users,
   LayoutGrid, ChevronRight, Clock, X, Sparkles,
-  IndianRupee, AlertTriangle,
+  IndianRupee, AlertTriangle, ScanBarcode,
 } from "lucide-react";
 import { getDashboardDataFn } from "@/lib/shop.functions";
 import { getHomeSummaryFn, type HomeSummaryOwner } from "@/lib/home.functions";
 import { BRAND_NAME, APP_ODOO_PATHS } from "@/lib/config";
+
+/** Sentinel used in APP_ODOO_PATHS for features that are wired but not yet live. */
+const COMING_SOON_SENTINEL = "__coming_soon__";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({ meta: [{ title: `Home — ${BRAND_NAME}` }] }),
@@ -61,12 +64,14 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   BookOpen:     <BookOpen size={26} strokeWidth={1.5} />,
   Users:        <Users size={26} strokeWidth={1.5} />,
   LayoutGrid:   <LayoutGrid size={26} strokeWidth={1.5} />,
+  ScanBarcode:  <ScanBarcode size={26} strokeWidth={1.5} />,
   // Slug-based fallbacks
   pos:          <ShoppingCart size={26} strokeWidth={1.5} />,
   inventory:    <Package size={26} strokeWidth={1.5} />,
   sales:        <TrendingUp size={26} strokeWidth={1.5} />,
   accounting:   <BookOpen size={26} strokeWidth={1.5} />,
   employees:    <Users size={26} strokeWidth={1.5} />,
+  barcodes:     <ScanBarcode size={26} strokeWidth={1.5} />,
 };
 
 function getIcon(app: { icon: string | null; slug: string }) {
@@ -363,6 +368,7 @@ function MetricCard({
 function AppCard({ app }: { app: { id: string; slug: string; name: string; icon: string | null; description: string | null } }) {
   const colors = ICON_COLORS[app.slug] ?? { bg: "var(--color-accent)", fg: "var(--color-primary)", shadow: "oklch(0 0 0 / 10%)" };
   const path = APP_ODOO_PATHS[app.slug];
+  const isComingSoon = path === COMING_SOON_SENTINEL;
 
   const content = (
     <div
@@ -371,6 +377,7 @@ function AppCard({ app }: { app: { id: string; slug: string; name: string; icon:
         padding: "1.25rem 1.125rem 1rem",
         display: "flex", flexDirection: "column",
         minHeight: "150px", position: "relative",
+        opacity: isComingSoon ? 0.8 : 1,
       }}
     >
       {/* Icon */}
@@ -397,17 +404,30 @@ function AppCard({ app }: { app: { id: string; slug: string; name: string; icon:
         )}
       </div>
 
-      {/* Chevron */}
-      <div style={{ position: "absolute", bottom: "1rem", right: "0.875rem", color: "var(--color-border-strong)" }}>
-        <ChevronRight size={16} />
-      </div>
+      {/* Coming soon badge OR chevron */}
+      {isComingSoon ? (
+        <div style={{
+          position: "absolute", bottom: "0.875rem", right: "0.875rem",
+          background: "oklch(0.88 0.05 200)", color: "oklch(0.42 0.16 200)",
+          fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.06em",
+          textTransform: "uppercase", borderRadius: "999px",
+          padding: "0.2em 0.55em",
+        }}>
+          Coming soon
+        </div>
+      ) : (
+        <div style={{ position: "absolute", bottom: "1rem", right: "0.875rem", color: "var(--color-border-strong)" }}>
+          <ChevronRight size={16} />
+        </div>
+      )}
     </div>
   );
 
-  if (path) {
+  if (path && !isComingSoon) {
     return <Link to="/open-app/$slug" params={{ slug: app.slug }}>{content}</Link>;
   }
-  return <div style={{ opacity: 0.5, cursor: "not-allowed" }}>{content}</div>;
+  // Coming soon or no path — render as non-navigable card
+  return <div style={{ cursor: isComingSoon ? "default" : "not-allowed" }}>{content}</div>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

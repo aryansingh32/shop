@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Kirana Platform — Inventory & Operations Screen Simplification
+
+    Disables dangerous list-level actions on Inventory screens at the server
+    level using Odoo's built-in list-view attributes. This is Mechanism A
+    from the audit report: disabling at the action-request level, not just
+    visually hiding via CSS.
+
+    VIEWS COVERED:
+      1. stock.picking list (Inventory → Operations → Transfers/Receipts)
+      2. stock.quant list   (Inventory → Products → Update Qty / Locations)
+
+    ATTRIBUTES USED (all stable since Odoo 14, not class-name dependent):
+      create   = "0"  → hides the New button  (transfers created by sales/pos, not manually)
+      delete   = "0"  → hides Delete from the ⋮ action menu
+      export_xlsx = "0" → hides Export (Inventory list data should not leave the system)
+      import   = "0"  → hides Import (same reason)
+      duplicate = "0" → hides Duplicate (no valid use-case for duplicating a transfer)
+
+    WHY NOT products_simplify.xml:
+      products_simplify.xml targets product.template (the Products screen).
+      This file targets stock.picking (Operations / Transfers) and stock.quant
+      (On-Hand quantities). They are separate models with separate view records.
+
+    HOW TO REVERSE:
+      Change any attribute to "1" or remove the entire xpath block.
+      Nothing changes the underlying model — all operations remain available
+      via direct RPC or admin Odoo UI.
+-->
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         1. Stock Picking (Transfers / Receipts / Deliveries) — list view
+         Ref: stock.vpicktree (the base transfer list in the stock module)
+         Model: stock.picking
+         Confirmed from odoo-src-reference/addons/stock/views/stock_picking_views.xml
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="kirana_stock_picking_list_simplify" model="ir.ui.view">
+        <field name="name">kirana.stock.picking.list.simplify</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.vpicktree"/>
+        <field name="arch" type="xml">
+            <!-- Disable bulk-delete, export, and import on the transfers list.
+                 create="0" → transfers are driven by sales orders / POS — not created manually.
+                 Managers can still create via the form if truly needed (removing the list-level button
+                 does not remove the form's Save capability). -->
+            <xpath expr="//list" position="attributes">
+                <attribute name="delete">0</attribute>
+                <attribute name="export_xlsx">0</attribute>
+                <attribute name="import">0</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         2. Stock Quant (On-Hand Quantities) — list view
+         Ref: stock.view_stock_quant_tree (base quant list)
+         Model: stock.quant
+         Confirmed from odoo-src-reference/addons/stock/views/stock_quant_views.xml
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="kirana_stock_quant_list_simplify" model="ir.ui.view">
+        <field name="name">kirana.stock.quant.list.simplify</field>
+        <field name="model">stock.quant</field>
+        <field name="inherit_id" ref="stock.view_stock_quant_tree"/>
+        <field name="arch" type="xml">
+            <!-- Disable export and import on the on-hand quantities list.
+                 Stock quantity data is sensitive — prevent accidental extraction.
+                 delete="0" prevents bulk-erasure of quant records (this would
+                 instantly zero out stock levels with no undo). -->
+            <xpath expr="//list" position="attributes">
+                <attribute name="delete">0</attribute>
+                <attribute name="export_xlsx">0</attribute>
+                <attribute name="import">0</attribute>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

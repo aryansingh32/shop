@@ -79,8 +79,11 @@ export const APP_ODOO_PATHS: Record<string, string> = {
   // 'purchase' is the registered path for purchase.purchase_rfq in the purchase module.
   purchase: "/odoo/purchase",
 
-  // barcodes: no standalone app screen — scanning capability is embedded in
-  // POS and Inventory. No path entry needed; the module just enables scanning.
+  // barcodes — a dedicated scan-first experience is coming. Until the OCA
+  // stock_picking_product_barcode_report UI is surfaced in the portal, the
+  // card should show "Coming soon" instead of being a dead greyed-out link.
+  // The __coming_soon__ sentinel is handled in AppCard in dashboard.tsx.
+  barcodes: "__coming_soon__",
 };
 
 /**
