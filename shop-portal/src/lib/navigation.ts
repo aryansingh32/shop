@@ -47,7 +47,7 @@ export interface NavGroup {
    * Undefined for portal-native routes (dashboard, settings, placeholders).
    */
   appSlug?: string;
-  /** If true, this item links to a "Coming soon" placeholder — not yet built */
+  /** If true, this item links to a planned feature that is not yet built */
   comingSoon?: boolean;
   /** Brief one-line description for the placeholder screen */
   description?: string;
@@ -91,9 +91,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Customers",
     iconName: "UserCircle",
     emoji: "👥",
-    requiredAppSlugs: [], // always visible — placeholder for now
+    requiredAppSlugs: [],
     route: "/customers",
-    comingSoon: true,
     description: "View customer profiles, loyalty points, and credit",
   },
   {
@@ -111,9 +110,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Grow",
     iconName: "TrendingUp",
     emoji: "📈",
-    requiredAppSlugs: [], // always visible — placeholder for now
+    requiredAppSlugs: [],
     route: "/grow",
-    comingSoon: true,
     description: "Sales reports, top products, and business insights",
   },
   {
@@ -136,9 +134,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Apps",
     iconName: "LayoutGrid",
     emoji: "🛒",
-    requiredAppSlugs: [], // always visible — marketplace placeholder for now
+    requiredAppSlugs: [],
     route: "/apps-marketplace",
-    comingSoon: true,
     description: "Explore and enable apps for your shop",
   },
   {

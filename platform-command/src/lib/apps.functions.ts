@@ -39,7 +39,7 @@ export const listApps = createServerFn({ method: "GET" })
 
 export const createApp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) => appSchema.parse(raw))
+  .validator((raw: unknown) => appSchema.parse(raw))
   .handler(async ({ context, data }) => {
     const actor = await requireRole(context.supabase, context.userId, ["super_admin"]);
     const { data: created, error } = await context.supabase.from("apps").insert(data as any).select().single();
@@ -56,7 +56,7 @@ export const createApp = createServerFn({ method: "POST" })
 
 export const updateApp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z.object({ id: z.string().uuid(), patch: appSchema.partial() }).parse(raw),
   )
   .handler(async ({ context, data }) => {
@@ -82,7 +82,7 @@ export const updateApp = createServerFn({ method: "POST" })
 
 export const deleteApp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
+  .validator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
   .handler(async ({ context, data }) => {
     const actor = await requireRole(context.supabase, context.userId, ["super_admin"]);
     const { error } = await context.supabase.from("apps").delete().eq("id", data.id);

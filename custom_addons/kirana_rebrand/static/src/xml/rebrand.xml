@@ -27,4 +27,58 @@
             <!-- Odoo logo SVG removed — white-label for Kirana platform -->
         </xpath>
     </t>
+
+    <!--
+        FIX: two separate "Backend" exit points in POS both call pos.closePos(),
+        which calls redirectToBackend() — it navigates the iframe straight into
+        Odoo's raw backend app-launcher screen (what a shop owner would see as
+        "the Odoo dashboard" appearing inside our portal). Relabeling the text
+        alone (an earlier, incomplete pass at this fix) does not change that
+        destination. Both are overridden here to instead navigate the actual
+        browser tab (window.top — safe: the POS iframe is same-origin, proxied
+        under the portal's own domain) back to our own portal dashboard.
+
+        1. point_of_sale.LoginScreen — the register-unlock screen's exit button
+           (backBtnName getter / clickBack() → closePos()).
+           VERIFIED AGAINST: addons/point_of_sale/static/src/app/screens/login_screen/login_screen.xml
+        2. point_of_sale.Navbar — "Backend" item in the ☰ menu shown during an
+           active order (onSelected="() => pos.closePos()").
+           VERIFIED AGAINST: addons/point_of_sale/static/src/app/navbar/navbar.xml
+    -->
+    <t t-inherit="point_of_sale.LoginScreen" t-inherit-mode="extension">
+        <xpath expr="//button[hasclass('select-logout')]" position="attributes">
+            <attribute name="t-on-click">() => { window.top.location.href = '/dashboard'; }</attribute>
+        </xpath>
+        <xpath expr="//button[hasclass('select-logout')]/span" position="replace">
+            <span class="d-flex flex-grow-1 align-items-center">Exit</span>
+        </xpath>
+    </t>
+
+    <t t-inherit="point_of_sale.Navbar" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('pos-burger-menu-items')]/DropdownItem[contains(., 'Backend')]" position="replace">
+            <DropdownItem onSelected="() => { window.top.location.href = '/dashboard'; }">
+                Back to Dashboard
+            </DropdownItem>
+        </xpath>
+    </t>
+
+    <!--
+        FIX: true one-tap customer creation. Search Customers already filters
+        as you type; this adds the missing other half — when nothing matches,
+        a button offers to create a customer named exactly what was typed,
+        in this same screen, no separate form. Logic lives in
+        pos_partner_quickcreate.js (canQuickCreatePartner / quickCreatePartner,
+        patched onto PartnerList). Placed right where "Search more" already
+        conditionally appears, so it never displaces real search results.
+        VERIFIED AGAINST: addons/point_of_sale/static/src/app/screens/partner_list/partner_list.xml
+    -->
+    <t t-inherit="point_of_sale.PartnerList" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('search-more-button')]" position="before">
+            <div t-if="canQuickCreatePartner" class="quick-create-customer d-flex justify-content-center my-2">
+                <button class="btn btn-lg btn-primary" t-on-click="quickCreatePartner">
+                    + Add "<t t-esc="state.query"/>" as a new customer
+                </button>
+            </div>
+        </xpath>
+    </t>
 </templates>

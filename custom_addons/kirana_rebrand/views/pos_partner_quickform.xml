@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Fix: adding a customer mid-sale opened Odoo's full Contacts form —
+    Individual/Company toggle, GST Treatment, GSTIN, Job Position, Website,
+    full street/city/state/country address — none of which a cashier can
+    fill in while a customer is standing at the counter waiting to pay.
+
+    Odoo's own point_of_sale module already isolates this from the main
+    Contacts app: `editPartner()` in pos_store.js opens the dedicated action
+    `point_of_sale.res_partner_action_edit_pos`, specifically so POS could
+    have its own view — but Odoo never actually built one; that action's
+    view_id still points at base.view_partner_form, the same form used
+    everywhere else. We only need to swap the one view_id below; nothing
+    about the main Contacts app or its form changes.
+
+    Fields kept: name (required) and phone. Per direct product feedback,
+    this must be exactly "enter name and mobile, done" — nothing else,
+    not even email. Phone is what future WhatsApp-receipt/reminder features
+    and repeat-customer lookup will key off. Everything else (email,
+    address, GST, company info) stays reachable from the full Customers
+    management screen for the rare case it's actually needed — it is not
+    lost, just not forced into the middle of a sale.
+-->
+<odoo>
+    <record id="kirana_pos_partner_quick_form" model="ir.ui.view">
+        <field name="name">kirana.pos.partner.quick.form</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <form string="Customer">
+                <sheet>
+                    <group>
+                        <field name="name" placeholder="e.g. Ramesh Kumar" required="1"/>
+                        <field name="phone" placeholder="e.g. 98765 43210"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Point Odoo's own POS-scoped "edit partner" action at the form above
+         instead of base.view_partner_form. Updating an existing record by
+         its full external ID (module.xml_id) is the standard Odoo pattern
+         for one module adjusting another's data without forking it. -->
+    <record id="point_of_sale.res_partner_action_edit_pos" model="ir.actions.act_window">
+        <field name="view_id" ref="kirana_pos_partner_quick_form"/>
+    </record>
+</odoo>

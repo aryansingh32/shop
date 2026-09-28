@@ -126,6 +126,13 @@ export async function odooSessionAuthenticate(
 
   if (json.error) {
     const msg = json.error.data?.message ?? json.error.message ?? "Authentication failed";
+    const exceptionName = json.error.data?.name ?? "";
+    if (
+      msg.toLowerCase().includes("access denied") ||
+      exceptionName.includes("AccessDenied")
+    ) {
+      throw new Error("Invalid email or password. Please try again.");
+    }
     throw new Error(msg);
   }
 
@@ -382,6 +389,7 @@ export interface OdooCompany {
   email: string | false;
   vat: string | false; // GSTIN in India
   website: string | false;
+  logo: string | false;
 }
 
 /** Read the primary company record from a shop's Odoo database. */
@@ -389,7 +397,7 @@ export async function getOdooCompany(db: string): Promise<OdooCompany | null> {
   const records = await odooAdminExecute<OdooCompany[]>(
     db, "res.company", "search_read",
     [[]],
-    { fields: ["id", "name", "street", "city", "phone", "email", "vat", "website"], limit: 1 }
+    { fields: ["id", "name", "street", "city", "phone", "email", "vat", "website", "logo"], limit: 1 }
   );
   return records[0] ?? null;
 }
@@ -419,20 +427,77 @@ export async function updateOdooCompany(
  * Returns null if no pos.config exists or if the lookup fails — the caller should
  * fall back to /pos/ui (which at minimum won't redirect to Discuss/Inbox).
  */
+/**
+ * Ensure Cash, Card, and UPI payment methods exist for a shop and are
+ * attached to its pos.config(s). Idempotent — safe to call on every POS open.
+ *
+ * Shops provisioned before UPI support was added (platform-command's
+ * odooCreatePosConfig now does this at provisioning time — see
+ * platform-command/src/lib/odoo/pos-payments.ts) were left with only Cash,
+ * permanently missing UPI/Card unless someone manually fixed it. Since
+ * shop-portal and platform-command are separate deployable apps that don't
+ * share code, this mirrors that logic locally rather than importing it, so
+ * every POS open self-heals a shop's payment methods instead of only new
+ * ones getting them.
+ */
+async function ensureRetailPaymentMethods(db: string, companyId: number): Promise<number[]> {
+  const ids: number[] = [];
+
+  async function findOrCreate(name: string, isCashCount: boolean): Promise<number | null> {
+    try {
+      const existing = await odooAdminExecute<{ id: number }[]>(
+        db, "pos.payment.method", "search_read",
+        [[["name", "=", name], ["company_id", "in", [companyId, false]]]],
+        { fields: ["id"], limit: 1 }
+      );
+      if (existing.length > 0) return existing[0].id;
+      return await odooAdminExecute<number>(db, "pos.payment.method", "create", [{
+        name, is_cash_count: isCashCount, company_id: companyId,
+      }]);
+    } catch (err) {
+      console.warn(`[ensureRetailPaymentMethods] Failed to ensure "${name}" on ${db}:`, err);
+      return null;
+    }
+  }
+
+  // Cash — prefer Odoo's existing cash method over creating a duplicate.
+  const cashMethods = await odooAdminExecute<{ id: number }[]>(
+    db, "pos.payment.method", "search_read",
+    [[["is_cash_count", "=", true]]],
+    { fields: ["id"], limit: 1 }
+  ).catch(() => []);
+  const cashId = cashMethods.length > 0 ? cashMethods[0].id : await findOrCreate("Cash", true);
+  if (cashId) ids.push(cashId);
+
+  const cardId = await findOrCreate("Card", false);
+  if (cardId) ids.push(cardId);
+
+  const upiId = await findOrCreate("UPI", false);
+  if (upiId) ids.push(upiId);
+
+  return [...new Set(ids)];
+}
+
+/** Attach the given payment methods to every pos.config that's missing them. */
+async function linkPaymentMethodsToPosConfigs(db: string, paymentMethodIds: number[]): Promise<void> {
+  if (paymentMethodIds.length === 0) return;
+  const configs = await odooAdminExecute<{ id: number; payment_method_ids: number[] }[]>(
+    db, "pos.config", "search_read",
+    [[["active", "in", [true, false]]]],
+    { fields: ["id", "payment_method_ids"] }
+  );
+  for (const cfg of configs) {
+    const existing = new Set(cfg.payment_method_ids ?? []);
+    const missing = paymentMethodIds.filter((id) => !existing.has(id));
+    if (missing.length === 0) continue;
+    await odooAdminExecute(db, "pos.config", "write", [
+      [cfg.id], { payment_method_ids: [[6, 0, [...existing, ...missing]]] },
+    ]);
+  }
+}
+
 export async function getPosConfigId(db: string): Promise<number | null> {
   try {
-    const configs = await odooAdminExecute<{ id: number; name: string }[]>(
-      db, "pos.config", "search_read",
-      [[["active", "=", true]]],
-      { fields: ["id", "name"], limit: 1, order: "id asc" }
-    );
-    if (configs.length > 0) {
-      return configs[0].id;
-    }
-
-    console.log(`[getPosConfigId] No active pos.config found for database "${db}". Creating default...`);
-
-    // Find the main company ID
     const companies = await odooAdminExecute<{ id: number; name: string }[]>(
       db, "res.company", "search_read",
       [[["id", ">", 0]]],
@@ -440,15 +505,25 @@ export async function getPosConfigId(db: string): Promise<number | null> {
     );
     const companyId = companies.length > 0 ? companies[0].id : 1;
 
-    // Find the Cash payment method
-    const paymentMethods = await odooAdminExecute<{ id: number; name: string }[]>(
-      db, "pos.payment.method", "search_read",
-      [[["is_cash_count", "=", true]]],
-      { fields: ["id", "name"], limit: 1 }
+    const paymentMethodIds = await ensureRetailPaymentMethods(db, companyId);
+
+    const configs = await odooAdminExecute<{ id: number; name: string }[]>(
+      db, "pos.config", "search_read",
+      [[["active", "=", true]]],
+      { fields: ["id", "name"], limit: 1, order: "id asc" }
     );
-    const cashPaymentMethodIds: number[] = paymentMethods.length > 0
-      ? [paymentMethods[0].id]
-      : [];
+    if (configs.length > 0) {
+      // Odoo refuses to change a pos.config's payment_method_ids while a
+      // session is open on it ("Unable to modify this PoS Configuration...")
+      // — expected for a shop mid-business-day, not a bug. A newly-created
+      // method (e.g. this backfilled UPI) attaches on the next session open.
+      await linkPaymentMethodsToPosConfigs(db, paymentMethodIds).catch((err) => {
+        console.warn(`[getPosConfigId] Could not attach payment methods to pos.config on "${db}" (likely an open session) — will retry next session:`, err instanceof Error ? err.message : err);
+      });
+      return configs[0].id;
+    }
+
+    console.log(`[getPosConfigId] No active pos.config found for database "${db}". Creating default...`);
 
     const configVals: Record<string, unknown> = {
       name: "Shop Counter",
@@ -457,8 +532,8 @@ export async function getPosConfigId(db: string): Promise<number | null> {
       module_pos_hr: false,
     };
 
-    if (cashPaymentMethodIds.length > 0) {
-      configVals.payment_method_ids = [[6, 0, cashPaymentMethodIds]];
+    if (paymentMethodIds.length > 0) {
+      configVals.payment_method_ids = [[6, 0, paymentMethodIds]];
     }
 
     const configId = await odooAdminExecute<number>(

@@ -46,7 +46,7 @@ export const listPlans = createServerFn({ method: "GET" })
 
 export const createPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) => planSchema.parse(raw))
+  .validator((raw: unknown) => planSchema.parse(raw))
   .handler(async ({ context, data }) => {
     const actor = await requireRole(context.supabase, context.userId, ["super_admin"]);
     const { app_ids, ...rest } = data;
@@ -73,7 +73,7 @@ export const createPlan = createServerFn({ method: "POST" })
 
 export const updatePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z.object({ id: z.string().uuid(), patch: planSchema.partial() }).parse(raw),
   )
   .handler(async ({ context, data }) => {
@@ -111,7 +111,7 @@ export const updatePlan = createServerFn({ method: "POST" })
 
 export const archivePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z.object({ id: z.string().uuid(), archive: z.boolean() }).parse(raw),
   )
   .handler(async ({ context, data }) => {
@@ -132,7 +132,7 @@ export const archivePlan = createServerFn({ method: "POST" })
 
 export const deletePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
+  .validator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
   .handler(async ({ context, data }) => {
     const actor = await requireRole(context.supabase, context.userId, ["super_admin"]);
     // Refuse if any shops are on it

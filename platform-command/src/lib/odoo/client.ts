@@ -12,11 +12,6 @@
 
 import http from "node:http";
 import https from "node:https";
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
-
-const execAsync = promisify(exec);
-
 const ODOO_URL = process.env.ODOO_URL ?? "http://localhost:8069";
 const MASTER_PASSWORD = process.env.ODOO_MASTER_PASSWORD ?? "superadmin";
 const ADMIN_LOGIN = process.env.ODOO_ADMIN_LOGIN ?? "admin";
@@ -484,19 +479,6 @@ export async function odooCreateUser(
   return userId;
 }
 
-/** Reset password for ALL internal admin/staff users in the shop Odoo DB natively via Odoo ORM */
-export async function resetOdooUserPasswordPg(
-  dbName: string,
-  newPassword: string,
-): Promise<void> {
-  const safePassword = newPassword.replace(/'/g, "\\'");
-
-  const pythonCmd = `import odoo; odoo.tools.config.parse_config(['-c', '/etc/odoo/odoo.conf']); registry = odoo.registry('${dbName}'); cr = registry.cursor(); env = odoo.api.Environment(cr, odoo.SUPERUSER_ID, {}); users = env['res.users'].search([('share', '=', False)]); users.write({'password': '${safePassword}'}); cr.commit(); cr.close()`;
-
-  const cmd = `docker exec odoo python3 -c "${pythonCmd}"`;
-  await execAsync(cmd);
-}
-
 /**
  * Create a minimal pos.config record on a freshly provisioned database.
  *
@@ -513,81 +495,92 @@ export async function odooCreatePosConfig(
   db: string,
   name: string = "Shop Counter",
 ): Promise<number> {
-  // Find the main company ID (always ID 1 for a single-company install)
+  const {
+    ensureRetailPaymentMethods,
+    linkPaymentMethodsToPosConfigs,
+    ensurePosPrintDefaults,
+  } = await import("./pos-payments");
+
   const companies = await odooAdminExecute<{ id: number; name: string }[]>(
     db, "res.company", "search_read",
     [[["id", ">", 0]]],
-    { fields: ["id", "name"], limit: 1 }
+    { fields: ["id", "name"], limit: 1 },
   );
   const companyId = companies.length > 0 ? companies[0].id : 1;
 
-  // Find the Cash payment method — installed automatically with point_of_sale.
-  // Match on is_cash_count = true (the Odoo 18 boolean for cash-type methods).
-  const paymentMethods = await odooAdminExecute<{ id: number; name: string }[]>(
-    db, "pos.payment.method", "search_read",
-    [[["is_cash_count", "=", true]]],
-    { fields: ["id", "name"], limit: 1 }
-  );
-  const cashPaymentMethodIds: number[] = paymentMethods.length > 0
-    ? [paymentMethods[0].id]
-    : [];
+  const paymentMethodIds = await ensureRetailPaymentMethods(db, companyId);
 
-  // Create a UPI payment method.
-  // This is a static, manual-confirm method — no payment gateway required.
-  // Mirrors how 99% of small Indian retailers use UPI today: a static QR code
-  // sticker at the counter, customer pays peer-to-peer, cashier marks as paid.
-  // is_cash_count = false → non-cash (no denomination counting at session close)
-  let upiPaymentMethodId: number | null = null;
-  try {
-    // Check if a UPI method already exists (idempotent re-runs)
-    const existingUpi = await odooAdminExecute<{ id: number }[]>(
-      db, "pos.payment.method", "search_read",
-      [[["name", "=", "UPI"]]],
-      { fields: ["id"], limit: 1 }
-    );
-    if (existingUpi.length > 0) {
-      upiPaymentMethodId = existingUpi[0].id;
-    } else {
-      upiPaymentMethodId = await odooAdminExecute<number>(
-        db, "pos.payment.method", "create",
-        [{ name: "UPI", is_cash_count: false, company_id: companyId }]
-      );
-    }
-  } catch (upiErr) {
-    // Non-fatal: UPI failure must not block a shop from going live.
-    // Cash alone is sufficient for a working POS session.
-    console.warn(`[odooCreatePosConfig] Failed to create UPI payment method on ${db} (non-fatal):`, upiErr);
-  }
-
-  // Build the combined payment method ID list: Cash + UPI (if created)
-  const allPaymentMethodIds = [
-    ...cashPaymentMethodIds,
-    ...(upiPaymentMethodId !== null ? [upiPaymentMethodId] : []),
-  ];
-
-  // Create the POS config.
-  // Minimal values: only what's needed for a working checkout.
-  // Restaurant / multi-POS / IoT settings are explicitly disabled.
   const configVals: Record<string, unknown> = {
     name,
     company_id: companyId,
-    // Retail shop: disable restaurant mode
     module_pos_restaurant: false,
-    // Access managed via portal groups — no employee PIN switching
     module_pos_hr: false,
+    iface_print_auto: true,
+    iface_print_skip_screen: true,
   };
 
-  if (allPaymentMethodIds.length > 0) {
-    // many2many replace command: [(6, 0, [ids])]
-    configVals.payment_method_ids = [[6, 0, allPaymentMethodIds]];
+  if (paymentMethodIds.length > 0) {
+    configVals.payment_method_ids = [[6, 0, paymentMethodIds]];
   }
 
   const configId = await odooAdminExecute<number>(
     db, "pos.config", "create",
-    [configVals]
+    [configVals],
   );
 
+  await linkPaymentMethodsToPosConfigs(db, paymentMethodIds).catch(() => {});
+  await ensurePosPrintDefaults(db).catch(() => {});
+
   return configId;
+}
+
+/** Set a neutral default company logo when none is uploaded yet. */
+export async function odooEnsureDefaultCompanyLogo(db: string): Promise<void> {
+  try {
+    const companies = await odooAdminExecute<Array<{ id: number; logo: string | false }>>(
+      db, "res.company", "search_read",
+      [[["id", ">", 0]]],
+      { fields: ["id", "logo"], limit: 1 },
+    );
+    if (!companies[0]?.id || companies[0].logo) return;
+
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const logoPath = path.resolve(
+      process.cwd(),
+      "../custom_addons/kirana_rebrand/static/src/img/favicon.ico",
+    );
+    if (!fs.existsSync(logoPath)) return;
+
+    const logoBase64 = fs.readFileSync(logoPath).toString("base64");
+    await odooAdminExecute(db, "res.company", "write", [
+      [companies[0].id],
+      { logo: logoBase64 },
+    ]);
+  } catch (err) {
+    console.warn(`[odooEnsureDefaultCompanyLogo] Non-fatal on ${db}:`, err);
+  }
+}
+
+/** Idempotent retail POS setup for existing databases (backfill / POS open). */
+export async function odooEnsureRetailPosSetup(db: string): Promise<void> {
+  const {
+    ensureRetailPaymentMethods,
+    linkPaymentMethodsToPosConfigs,
+    ensurePosPrintDefaults,
+  } = await import("./pos-payments");
+
+  const companies = await odooAdminExecute<{ id: number }[]>(
+    db, "res.company", "search_read",
+    [[["id", ">", 0]]],
+    { fields: ["id"], limit: 1 },
+  );
+  const companyId = companies[0]?.id ?? 1;
+
+  const paymentMethodIds = await ensureRetailPaymentMethods(db, companyId);
+  await linkPaymentMethodsToPosConfigs(db, paymentMethodIds);
+  await ensurePosPrintDefaults(db);
+  await odooEnsureDefaultCompanyLogo(db);
 }
 
 /**

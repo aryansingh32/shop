@@ -1,0 +1,28 @@
+# Exclude heavy folders that slow down build context transfer
+platform-command/node_modules
+shop-portal/node_modules
+platform-command/.output
+platform-command/.wrangler
+platform-command/.tanstack
+shop-portal/.tanstack
+shop-portal/.wrangler
+node_modules
+
+# Git & editor
+.git
+.gitignore
+*.md
+
+# Scratch / logs
+scratch/
+*.log
+*.zip
+
+# Large Odoo reference dir (not needed in container)
+odoo-src-reference/
+stock-logistics-barcode/
+
+# Never bake secrets into image layers
+**/.env
+**/.env.*
+!**/.env.example

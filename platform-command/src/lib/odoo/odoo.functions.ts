@@ -9,7 +9,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, requireRole, writeAudit } from "@/lib/rbac.server";
-import { odooAdminExecute, resetOdooUserPasswordPg } from "./client";
+import { odooAdminExecute } from "./client";
 import {
   checkShopHealth,
   fetchShopEmployees,
@@ -22,7 +22,7 @@ import {
  */
 export const getOdooShopHealth = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z.object({ shopId: z.string().uuid() }).parse(raw),
   )
   .handler(async ({ context, data }) => {
@@ -78,7 +78,7 @@ export const getOdooShopHealth = createServerFn({ method: "GET" })
  */
 export const getShopOdooEmployees = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z.object({ shopId: z.string().uuid() }).parse(raw),
   )
   .handler(async ({ context, data }) => {
@@ -107,7 +107,7 @@ export const getShopOdooEmployees = createServerFn({ method: "GET" })
  */
 export const setShopUserPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z
       .object({
         shopId: z.string().uuid(),
@@ -121,36 +121,17 @@ export const setShopUserPassword = createServerFn({ method: "POST" })
 
     const { data: shop, error } = await context.supabase
       .from("shops")
-      .select("odoo_db_name, business_name, email, subdomain")
+      .select("odoo_db_name, business_name")
       .eq("id", data.shopId)
       .maybeSingle();
 
     if (error) throw error;
     if (!shop?.odoo_db_name) throw new Error("Shop Odoo database not found or not provisioned.");
 
-    const shopAdminEmail = shop.email || (shop.subdomain ? `admin@${shop.subdomain}.kshetra.app` : undefined);
-
-    // Query recent audit logs to find current saved password for this shop
-    const { data: activity } = await context.supabase
-      .from("audit_log")
-      .select("after_state")
-      .eq("shop_id", data.shopId)
-      .order("created_at", { ascending: false })
-      .limit(30);
-
-    const latestPwdEntry = (activity ?? []).find((a: any) => {
-      const st = a.after_state as any;
-      return st && typeof st.admin_password === "string" && st.admin_password.length > 0;
-    });
-    const currentPassword = latestPwdEntry ? (latestPwdEntry.after_state as any).admin_password : undefined;
-
-    // Reset ALL internal Odoo admin/staff users natively using Odoo ORM framework
-    await resetOdooUserPasswordPg(shop.odoo_db_name, data.newPassword);
-
-    await context.supabase
-      .from("shops")
-      .update({ odoo_admin_password: data.newPassword } as any)
-      .eq("id", data.shopId);
+    await odooAdminExecute(shop.odoo_db_name, "res.users", "write", [
+      [data.userId],
+      { password: data.newPassword },
+    ]);
 
     await writeAudit(context.supabase, {
       actor: { id: actor.user_id, user_id: actor.user_id, email: actor.email },
@@ -158,10 +139,9 @@ export const setShopUserPassword = createServerFn({ method: "POST" })
       entityType: "shop",
       entityId: data.shopId,
       action: "user.password_reset",
-      after: { userId: data.userId, shopName: shop.business_name, admin_password: data.newPassword },
+      after: { userId: data.userId, shopName: shop.business_name, password_changed: true },
     });
 
 
     return { success: true };
   });
-

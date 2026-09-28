@@ -1,26 +1,62 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Kirana Retail SaaS — Complete Docker Stack
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# SMART REUSE: Uses already-built images — no rebuilds unless you pass --build.
+#
+# Services:
+#   db              → PostgreSQL 15 (Odoo's database)
+#   odoo            → Odoo 18 ERP (kirana-odoo:18.0 — already built!)
+#   platform-command → Super Admin Panel (TanStack Start / React)
+#   shop-portal     → Shop Owner Portal (TanStack Start / React)
+#   nginx           → Reverse proxy — single entry point on :8888
+#
+# One-click start:
+#   docker compose up -d                # Start everything (uses cached images)
+#   docker compose up -d --build        # Force rebuild app images only
+#   docker compose logs -f              # Watch logs
+#   docker compose down                 # Stop
+#
+# URLs after startup:
+#   http://localhost:8888         →  Super Admin Panel  (main demo entry)
+#   http://localhost:8888/shop    →  Shop Owner Portal
+#   http://localhost:8069         →  Odoo ERP (direct — already running!)
+#   http://localhost:4000         →  Super Admin Panel (direct)
+#   http://localhost:4001         →  Shop Owner Portal (direct)
+# ═══════════════════════════════════════════════════════════════════════════════
+
 services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  # Reuses postgres:15 which is already pulled locally
   db:
     image: postgres:15
-    container_name: odoo-db
+    container_name: kirana-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: odoo
       POSTGRES_PASSWORD: odoo
       POSTGRES_DB: postgres
     volumes:
-      - odoo-db-data:/var/lib/postgresql/data
+      - kirana-db-data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"   # 5433 externally (5432 may be in use by other projects)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ── Odoo 18 ERP ─────────────────────────────────────────────────────────────
+  # Uses kirana-odoo:18.0 — ALREADY BUILT locally. No download needed.
+  # If image missing: docker compose build odoo
   odoo:
-    build:
-      context: .
-      dockerfile: Dockerfile.odoo
     image: kirana-odoo:18.0
-    container_name: odoo
+    container_name: kirana-odoo
     restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8069:8069"
     environment:
@@ -28,10 +64,99 @@ services:
       USER: odoo
       PASSWORD: odoo
     volumes:
-      - odoo-web-data:/var/lib/odoo
+      - kirana-odoo-data:/var/lib/odoo
       - ./custom_addons:/mnt/extra-addons
       - ./config/odoo.conf:/etc/odoo/odoo.conf
+      - kirana-odoo-logs:/var/log/odoo
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8069/web/health || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 60s
+
+  # ── Super Admin Panel ────────────────────────────────────────────────────────
+  # Built from ./Dockerfile.platform-command
+  # Runs on port 4000 (avoids conflict with apniidukan on 3000)
+  platform-command:
+    build:
+      context: .
+      dockerfile: Dockerfile.platform-command
+      args:
+        VITE_SUPABASE_URL: "${SUPABASE_URL:-https://bzwkykkrmammyhdpvlrw.supabase.co}"
+        VITE_SUPABASE_PUBLISHABLE_KEY: "${SUPABASE_PUBLISHABLE_KEY:-sb_publishable_izvmrKUfYzDScPdXKdZ1Vg_S1OAriBi}"
+        VITE_SUPABASE_PROJECT_ID: "${SUPABASE_PROJECT_ID:-bzwkykkrmammyhdpvlrw}"
+    image: kirana-platform-command:latest
+    container_name: kirana-platform-command
+    restart: unless-stopped
+    depends_on:
+      - odoo
+    ports:
+      - "4000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      SUPABASE_URL: "${SUPABASE_URL:-https://bzwkykkrmammyhdpvlrw.supabase.co}"
+      SUPABASE_PUBLISHABLE_KEY: "${SUPABASE_PUBLISHABLE_KEY:-sb_publishable_izvmrKUfYzDScPdXKdZ1Vg_S1OAriBi}"
+      SUPABASE_SERVICE_ROLE_KEY: "${SUPABASE_SERVICE_ROLE_KEY:?set SUPABASE_SERVICE_ROLE_KEY in .env}"
+      SUPABASE_SECRET_KEY: "${SUPABASE_SECRET_KEY:?set SUPABASE_SECRET_KEY in .env}"
+      VITE_SUPABASE_URL: "${SUPABASE_URL:-https://bzwkykkrmammyhdpvlrw.supabase.co}"
+      VITE_SUPABASE_PUBLISHABLE_KEY: "${SUPABASE_PUBLISHABLE_KEY:-sb_publishable_izvmrKUfYzDScPdXKdZ1Vg_S1OAriBi}"
+      VITE_SUPABASE_PROJECT_ID: "${SUPABASE_PROJECT_ID:-bzwkykkrmammyhdpvlrw}"
+      # Points to odoo service inside docker network
+      ODOO_URL: "http://odoo:8069"
+      ODOO_MASTER_PASSWORD: "${ODOO_MASTER_PASSWORD:-superadmin}"
+      ODOO_ADMIN_LOGIN: "${ODOO_ADMIN_LOGIN:-admin}"
+      ODOO_ADMIN_PASSWORD: "${ODOO_ADMIN_PASSWORD:-admin}"
+
+  # ── Shop Owner Portal ────────────────────────────────────────────────────────
+  # Built from ./Dockerfile.shop-portal
+  # Runs on port 4001 (avoids conflict with apniidukan on 3001)
+  shop-portal:
+    build:
+      context: .
+      dockerfile: Dockerfile.shop-portal
+    image: kirana-shop-portal:latest
+    container_name: kirana-shop-portal
+    restart: unless-stopped
+    depends_on:
+      - odoo
+    ports:
+      - "4001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      BRAND_NAME: "${BRAND_NAME:-Kirana}"
+      BASE_DOMAIN: "${BASE_DOMAIN:-localhost}"
+      SESSION_SECRET: "${SESSION_SECRET:-dev-secret-change-in-production}"
+      SUPABASE_URL: "${SUPABASE_URL:-https://bzwkykkrmammyhdpvlrw.supabase.co}"
+      SUPABASE_PUBLISHABLE_KEY: "${SUPABASE_PUBLISHABLE_KEY:-sb_publishable_izvmrKUfYzDScPdXKdZ1Vg_S1OAriBi}"
+      SUPABASE_SERVICE_ROLE_KEY: "${SUPABASE_SERVICE_ROLE_KEY:?set SUPABASE_SERVICE_ROLE_KEY in .env}"
+      SUPABASE_SECRET_KEY: "${SUPABASE_SECRET_KEY:?set SUPABASE_SECRET_KEY in .env}"
+      SUPABASE_JWKS_URL: "${SUPABASE_JWKS_URL:-https://bzwkykkrmammyhdpvlrw.supabase.co/auth/v1/.well-known/jwks.json}"
+      ODOO_URL: "http://odoo:8069"
+      ODOO_ADMIN_LOGIN: "${ODOO_ADMIN_LOGIN:-admin}"
+      ODOO_ADMIN_PASSWORD: "${ODOO_ADMIN_PASSWORD:-admin}"
+
+  # ── Nginx — Single Entry Point ───────────────────────────────────────────────
+  # port 8888 = main demo URL (avoids conflict with anything on 80)
+  nginx:
+    image: nginx:alpine
+    container_name: kirana-nginx
+    restart: unless-stopped
+    depends_on:
+      - platform-command
+      - shop-portal
+    ports:
+      - "8888:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
 volumes:
-  odoo-db-data:
-  odoo-web-data:
+  kirana-db-data:
+    name: kirana-db-data
+  kirana-odoo-data:
+    name: kirana-odoo-data
+  kirana-odoo-logs:
+    name: kirana-odoo-logs
+

@@ -14,7 +14,7 @@
  */
 
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useLayoutEffect, useRef } from "react";
 import { ArrowLeft, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { getSessionFn } from "@/lib/auth.functions";
 import { APP_ODOO_PATHS } from "@/lib/config";
@@ -118,8 +118,24 @@ export const Route = createFileRoute("/open-app/$slug")({
     if (!odooPath) throw redirect({ to: "/dashboard" });
   },
   loader: async ({ params }) => {
-    const session = await getSessionFn();
+    // This loader used to let a transient fetch failure (e.g. a dropped
+    // connection to the server-function endpoint while the previous
+    // full-page iframe route is tearing down) propagate as a raw, uncaught
+    // TypeError. TanStack Router has nowhere reliable to route that except
+    // bubbling to the root errorComponent, and in practice the app was
+    // observed staying on the previous screen's stale content instead —
+    // "Sell" would silently fail to open with no feedback at all. Every
+    // server call here is now wrapped so a real failure becomes a thrown
+    // Error with a message the route's own errorComponent below can show,
+    // instead of an unhandled rejection.
+    let session;
+    try {
+      session = await getSessionFn();
+    } catch {
+      throw new Error("Couldn't verify your session. Please try again.");
+    }
     if (!session) throw redirect({ to: "/login" });
+
     const db = encodeURIComponent(session.odooDb);
     const basePath = APP_ODOO_PATHS[params.slug]!;
 
@@ -129,14 +145,19 @@ export const Route = createFileRoute("/open-app/$slug")({
       // /pos/ui?config_id=<id>&db=<db> skips the onboarding wizard and routes
       // straight to the checkout product grid.
       // Without config_id, Odoo may redirect to the onboarding wizard or Discuss.
-      const configId = await getPosConfigIdFn({ data: { db: session.odooDb } });
-      if (configId) {
-        iframeSrc = `${basePath}?config_id=${configId}&db=${db}`;
-      } else {
+      let configId: number | null = null;
+      try {
+        configId = await getPosConfigIdFn({ data: { db: session.odooDb } });
+      } catch {
+        // Non-fatal — fall through to opening /pos/ui without config_id
+        // rather than failing the whole route over a POS-config lookup.
+        configId = null;
+      }
+      iframeSrc = configId
+        ? `${basePath}?config_id=${configId}&db=${db}`
         // Fallback: no config yet — open /pos/ui with db only.
         // The onboarding wizard will appear, but that's better than Discuss/Inbox.
-        iframeSrc = `${basePath}?db=${db}`;
-      }
+        : `${basePath}?db=${db}`;
     } else {
       // All other apps: standard /odoo/<path>?db=<db> URL
       iframeSrc = `${basePath}?db=${db}`;
@@ -144,8 +165,76 @@ export const Route = createFileRoute("/open-app/$slug")({
 
     return { session, iframeSrc, odooSessionId: session.odooSessionId };
   },
+  pendingComponent: OpenAppPending,
+  pendingMs: 0,
+  errorComponent: OpenAppError,
   component: OpenAppPage,
 });
+
+// ── Pending / error states ──────────────────────────────────────────────────
+// Defined on this route specifically (not left to bubble to the root
+// errorComponent) so a failure or an in-flight loader always shows explicit
+// feedback immediately, rather than the previous screen appearing to freeze.
+
+function OpenAppPending() {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "1rem",
+        background: "var(--color-background)",
+        zIndex: 50,
+      }}
+    >
+      <Loader2 size={32} className="animate-spin" style={{ color: "var(--color-primary)" }} />
+      <p style={{ color: "var(--color-foreground-muted)", fontSize: "0.9375rem" }}>Opening app…</p>
+    </div>
+  );
+}
+
+function OpenAppError({ error }: { error: Error }) {
+  const navigate = useNavigate();
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "1rem",
+        padding: "2rem",
+        background: "var(--color-background)",
+        zIndex: 50,
+      }}
+    >
+      <AlertCircle size={40} style={{ color: "var(--color-destructive)" }} />
+      <div style={{ textAlign: "center" }}>
+        <p style={{ fontWeight: 600, fontSize: "1.0625rem", color: "var(--color-foreground)" }}>
+          App temporarily unavailable
+        </p>
+        <p style={{ fontSize: "0.875rem", color: "var(--color-foreground-muted)", marginTop: "0.375rem", maxWidth: "320px" }}>
+          {error?.message || "Something went wrong opening this app. Please try again."}
+        </p>
+      </div>
+      <div style={{ display: "flex", gap: "0.75rem" }}>
+        <button className="btn-primary" onClick={() => window.location.reload()}>
+          <RefreshCw size={15} />
+          Try again
+        </button>
+        <button className="btn-secondary" onClick={() => navigate({ to: "/dashboard" })}>
+          Back to dashboard
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ── Page ───────────────────────────────────────────────────────────────────
 
@@ -394,9 +483,16 @@ function OpenAppPage() {
           //   1. Access iframe.contentDocument to inject our debranding CSS
           //   2. The Odoo session cookie is sent with asset/API requests
           // allow-scripts is required for the Odoo web client to run
-          // Note: combining both reduces sandbox isolation — acceptable here
+          // allow-top-navigation-by-user-activation lets kirana_rebrand's POS
+          // "Exit" / "Back to Dashboard" buttons send the actual browser tab
+          // back to our portal (window.top.location.href) instead of loading
+          // our dashboard illegally *inside* the Odoo iframe. Restricted to
+          // user-activated navigations only (real clicks) — a sandboxed
+          // iframe cannot redirect the top frame programmatically even with
+          // allow-same-origin; that requires this separate, narrower flag.
+          // Note: combining these reduces sandbox isolation — acceptable here
           // because the iframe content comes from our own proxied Odoo server.
-          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-downloads allow-popups-to-escape-sandbox"
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-downloads allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
           allow="camera; microphone"
         />
       )}

@@ -297,20 +297,26 @@ function CreateShopDialog({ plans, children }: { plans: { id: string; name: stri
     state: "",
     gstin: "",
     plan_id: plans[0]?.id ?? "",
-    admin_password: "admin",
   });
+  const [generatedCredentials, setGeneratedCredentials] = useState<{
+    login: string;
+    password: string;
+  } | null>(null);
   const qc = useQueryClient();
   const create = useServerFn(createShop);
   const mut = useMutation({
     mutationFn: (input: typeof form) => create({ data: input as never }),
-    onSuccess: () => {
+    onSuccess: (created: any) => {
       toast.success("Shop created — provisioning queued");
       qc.invalidateQueries({ queryKey: ["shops"] });
       qc.invalidateQueries({ queryKey: ["dashboard-metrics"] });
       qc.invalidateQueries({ queryKey: ["dashboard-activity"] });
-      setOpen(false);
+      setGeneratedCredentials({
+        login: created.initial_owner_login,
+        password: created.initial_owner_password,
+      });
       setSubdomainTouched(false);
-      setForm({ ...form, business_name: "", subdomain: "", owner_name: "", phone: "", email: "", city: "", state: "", gstin: "", admin_password: "admin" });
+      setForm({ ...form, business_name: "", subdomain: "", owner_name: "", phone: "", email: "", city: "", state: "", gstin: "" });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -326,7 +332,7 @@ function CreateShopDialog({ plans, children }: { plans: { id: string; name: stri
 
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) setGeneratedCredentials(null); }}>
       <DialogTrigger asChild id="create-shop-trigger">{children}</DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
@@ -335,6 +341,29 @@ function CreateShopDialog({ plans, children }: { plans: { id: string; name: stri
             Creating a shop queues Odoo provisioning. Trial starts once provisioning succeeds.
           </DialogDescription>
         </DialogHeader>
+        {generatedCredentials ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-status-success/30 bg-status-success/10 p-4">
+              <h3 className="text-sm font-semibold text-status-success">First-login credentials</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Share these with the shop owner now. They are not stored in the platform audit log.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Login</Label>
+              <Input readOnly value={generatedCredentials.login} className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Temporary password</Label>
+              <Input readOnly value={generatedCredentials.password} className="font-mono" />
+            </div>
+            <DialogFooter>
+              <Button type="button" onClick={() => { setGeneratedCredentials(null); setOpen(false); }}>
+                Done
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
         <form
           onSubmit={(e) => { e.preventDefault(); mut.mutate(form); }}
           className="grid grid-cols-2 gap-4"
@@ -412,10 +441,6 @@ function CreateShopDialog({ plans, children }: { plans: { id: string; name: stri
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="pwd">Odoo Admin Password *</Label>
-            <Input id="pwd" required type="text" placeholder="admin" value={form.admin_password} onChange={(e) => setForm({ ...form, admin_password: e.target.value })} />
-          </div>
           <DialogFooter className="col-span-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={mut.isPending}>
@@ -424,6 +449,7 @@ function CreateShopDialog({ plans, children }: { plans: { id: string; name: stri
             </Button>
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   );

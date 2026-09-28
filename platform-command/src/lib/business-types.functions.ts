@@ -97,7 +97,7 @@ const templateWriteSchema = z.object({
 /** Create a new business-type template. Super-admin only. */
 export const createBusinessTypeTemplateFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) => templateWriteSchema.parse(raw))
+  .validator((raw: unknown) => templateWriteSchema.parse(raw))
   .handler(async ({ context, data }) => {
     const actor = await requireRole(context.supabase, context.userId, ["super_admin"]);
 
@@ -122,7 +122,7 @@ export const createBusinessTypeTemplateFn = createServerFn({ method: "POST" })
 /** Update an existing business-type template. Super-admin only. */
 export const updateBusinessTypeTemplateFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z.object({ id: z.string().uuid(), patch: templateWriteSchema.partial() }).parse(raw),
   )
   .handler(async ({ context, data }) => {

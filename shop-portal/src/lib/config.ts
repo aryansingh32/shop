@@ -68,8 +68,11 @@ export const APP_ODOO_PATHS: Record<string, string> = {
   sales: "/odoo/sales",
 
   // Accounting → Customer Invoices (most relevant landing for a retail shop).
-  // 'accounting' is the registered path for the Accounting app root action.
-  accounting: "/odoo/accounting",
+  // Do NOT use /odoo/accounting — that opens the accountant journals dashboard.
+  accounting: "/odoo/action-account.action_move_out_invoice_type",
+
+  // Expenses → My expenses list (hr_expense module).
+  expenses: "/odoo/action-hr_expense.hr_expense_actions_my_all",
 
   // Employees → Employee list.
   // 'employees' is the registered path for hr.open_view_employee_list_my in the hr module.
@@ -105,6 +108,7 @@ export const APP_ODOO_GROUPS: Record<string, string> = {
   // barcodes: no dedicated group — all internal users can scan barcodes.
   // purchase: standard purchaser group.
   purchase: "purchase.group_purchase_user",
+  expenses: "hr_expense.group_hr_expense_user",
 };
 
 /**

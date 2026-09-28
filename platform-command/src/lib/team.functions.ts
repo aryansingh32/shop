@@ -19,7 +19,7 @@ export const listTeam = createServerFn({ method: "GET" })
 
 export const inviteTeamMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z
       .object({
         name: z.string().min(2).max(120),
@@ -54,7 +54,7 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
 
 export const updateTeamMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -103,7 +103,7 @@ export const updateTeamMember = createServerFn({ method: "POST" })
 
 export const revokeTeamMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
+  .validator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
   .handler(async ({ context, data }) => {
     const actor = await requireRole(context.supabase, context.userId, ["super_admin"]);
     const { data: before } = await context.supabase

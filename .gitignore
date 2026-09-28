@@ -7,3 +7,4 @@ node_modules/
 node-v22/
 *.zip
 stock-logistics-barcode/
+*.log

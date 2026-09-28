@@ -1,74 +1,51 @@
-/**
- * Apps Marketplace — Coming Soon placeholder
- * Feature 2: This route is registered by the navigation redesign.
- * The real marketplace (Feature 5) will replace this placeholder.
- * Until then, this "Coming soon" state is shown.
- */
 import { createFileRoute } from "@tanstack/react-router";
-import { LayoutGrid } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { CheckCircle2, LayoutGrid, Lock } from "lucide-react";
 import { BRAND_NAME } from "@/lib/config";
+import { getDashboardDataFn } from "@/lib/shop.functions";
 
 export const Route = createFileRoute("/_app/apps-marketplace")({
   head: () => ({ meta: [{ title: `Apps — ${BRAND_NAME}` }] }),
-  component: AppsMarketplacePlaceholder,
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData({ queryKey: ["dashboard"], queryFn: () => getDashboardDataFn() }),
+  component: AppsPage,
 });
 
-function AppsMarketplacePlaceholder() {
+function AppsPage() {
+  const fetchDashboard = useServerFn(getDashboardDataFn);
+  const { data } = useSuspenseQuery({ queryKey: ["dashboard"], queryFn: () => fetchDashboard() });
+  const { plan, apps } = data;
+
   return (
-    <div style={{ maxWidth: "640px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "2rem" }}>
-        <div style={{
-          background: "oklch(0.90 0.07 75)",
-          color: "oklch(0.42 0.20 75)",
-          borderRadius: "var(--radius-xl)",
-          width: "56px", height: "56px",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          flexShrink: 0,
-          boxShadow: "0 4px 12px oklch(0.60 0.18 75 / 20%)",
-        }}>
-          <LayoutGrid size={28} strokeWidth={1.5} />
-        </div>
-        <div>
-          <h1 style={{
-            fontFamily: "var(--font-display)", fontWeight: 800,
-            fontSize: "1.75rem", color: "var(--color-foreground)",
-            letterSpacing: "-0.02em", margin: 0,
-          }}>
-            Apps
-          </h1>
-          <p style={{ margin: "0.25rem 0 0", fontSize: "0.9375rem", color: "var(--color-foreground-muted)" }}>
-            Explore and enable tools for your shop — with clear, transparent pricing
-          </p>
-        </div>
+    <div style={{ maxWidth: "900px" }}>
+      <div className="page-header">
+        <h1>Apps</h1>
+        <p>{plan ? `${plan.name} plan includes ${apps.length} app${apps.length === 1 ? "" : "s"}` : "Apps enabled for your shop"}</p>
       </div>
 
-      <div style={{
-        background: "var(--color-surface)",
-        border: "1.5px solid var(--color-border)",
-        borderRadius: "var(--radius-xl)",
-        padding: "2.5rem",
-        textAlign: "center",
-      }}>
-        <div style={{
-          width: "72px", height: "72px",
-          background: "var(--color-accent)",
-          borderRadius: "50%",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          margin: "0 auto 1.5rem",
-        }}>
-          <LayoutGrid size={36} style={{ color: "var(--color-foreground-muted)" }} />
-        </div>
-        <h2 style={{
-          fontFamily: "var(--font-display)", fontWeight: 700,
-          fontSize: "1.25rem", color: "var(--color-foreground)", marginBottom: "0.75rem",
-        }}>
-          Coming soon
-        </h2>
-        <p style={{ fontSize: "0.9375rem", color: "var(--color-foreground-muted)", maxWidth: "400px", margin: "0 auto 0.5rem", lineHeight: 1.6 }}>
-          Enable only the apps your shop needs. Every price shown upfront — no surprises, no hidden fees.
-        </p>
-        <p style={{ fontSize: "0.8125rem", color: "var(--color-foreground-subtle)", marginTop: "1.5rem" }}>
-          No more calling to ask "how much does this feature cost?" 💬
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
+        {apps.map((app) => (
+          <div key={app.id} className="card" style={{ padding: "1rem" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
+              <div style={{ width: 44, height: 44, borderRadius: "var(--radius-lg)", background: "var(--color-primary-soft)", color: "var(--color-primary)", display: "grid", placeItems: "center" }}>
+                <LayoutGrid size={21} />
+              </div>
+              <span className="badge badge-success" style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                <CheckCircle2 size={13} />
+                Included
+              </span>
+            </div>
+            <h2 style={{ margin: "1rem 0 0.25rem", fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.1rem" }}>{app.name}</h2>
+            <p style={{ color: "var(--color-foreground-muted)", fontSize: "0.875rem", margin: 0 }}>{app.description}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="card" style={{ marginTop: "1rem", padding: "1rem", display: "flex", alignItems: "center", gap: "0.75rem", color: "var(--color-foreground-muted)" }}>
+        <Lock size={18} />
+        <p style={{ margin: 0, fontSize: "0.9rem" }}>
+          New paid add-ons are enabled by support after plan confirmation. This keeps billing clear and avoids surprise charges.
         </p>
       </div>
     </div>

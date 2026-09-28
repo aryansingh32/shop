@@ -5,7 +5,7 @@ import { requireAdmin } from "./rbac.server";
 
 export const listAudit = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z
       .object({
         entityType: z.string().optional(),

@@ -19,6 +19,7 @@ import {
   odooReactivateUsers,
   odooGetUsers,
   odooServerVersion,
+  odooFindModules,
   type OdooUser,
   type OdooModule,
   ADMIN_LOGIN,
@@ -26,6 +27,8 @@ import {
   odooCreateUser,
   odooCreatePosConfig,
   odooCreateLoyaltyProgram,
+  odooEnsureDefaultCompanyLogo,
+  odooEnsureRetailPosSetup,
   syncOwnerGroupsAfterModuleInstall,
 } from "./client";
 import { getBusinessTypeTemplateBySlug } from "../business-types.functions";
@@ -52,6 +55,21 @@ export interface ShopHealthResult {
   installedModuleNames: string[];
   odooVersion: string | null;
   userCount: number;
+}
+
+async function assertModulesInstallable(dbName: string, moduleNames: string[]): Promise<void> {
+  const uniqueNames = [...new Set(moduleNames)].filter(Boolean);
+  const records = await odooFindModules(dbName, uniqueNames);
+  const byName = new Map(records.map((m) => [m.name, m]));
+  const missing = uniqueNames.filter((name) => !byName.has(name));
+  const uninstallable = records.filter((m) => m.state === "uninstallable").map((m) => m.name);
+
+  if (missing.length > 0 || uninstallable.length > 0) {
+    const parts = [];
+    if (missing.length > 0) parts.push(`missing modules: ${missing.join(", ")}`);
+    if (uninstallable.length > 0) parts.push(`uninstallable modules: ${uninstallable.join(", ")}`);
+    throw new Error(`Odoo module preflight failed (${parts.join("; ")}). Check addons_path and app catalog mappings.`);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -165,6 +183,7 @@ export async function provisionShop(
 
     const allModulesArray = Array.from(allModules);
     console.log(`[provisionShop] Installing modules on ${dbName}:`, allModulesArray);
+    await assertModulesInstallable(dbName, allModulesArray);
     await odooInstallModules(dbName, allModulesArray);
 
     // Step 3: Create the shop owner's admin user account
@@ -181,6 +200,8 @@ export async function provisionShop(
       await odooCreatePosConfig(dbName, "Shop Counter");
       console.log(`[provisionShop] pos.config created on ${dbName}`);
     }
+
+    await odooEnsureDefaultCompanyLogo(dbName);
 
     // Feature 6 — Loyalty Program auto-creation:
     // Create a default loyalty program if the loyalty module is being installed.

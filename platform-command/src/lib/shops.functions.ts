@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -27,12 +28,23 @@ const createShopSchema = z.object({
   gstin: z.string().max(20).optional().nullable(),
   subdomain: z.string().regex(/^[a-z0-9-]+$/i).min(3).max(60).optional().nullable(),
   plan_id: z.string().uuid().optional().nullable(),
-  admin_password: z.string().min(3).max(100).optional(),
+  admin_password: z.string().min(12).max(100).optional(),
   /** Feature 1 — Business-Type Onboarding Templates: optional slug that pre-selects
    * Odoo modules at provisioning time. If omitted, provisioning uses plan modules only
    * (identical to pre-feature behavior). */
   business_type_slug: z.string().max(60).optional().nullable(),
 });
+
+function generateTemporaryPassword(): string {
+  return `Ro-${crypto.randomBytes(9).toString("base64url")}9!`;
+}
+
+function redactSensitive<T extends Record<string, any>>(value: T): T {
+  const copy = { ...value };
+  delete copy.admin_password;
+  delete copy.odoo_admin_password;
+  return copy;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Unique subdomain generator
@@ -71,7 +83,7 @@ export async function generateUniqueSubdomain(
 // Check Subdomain Availability server function
 export const checkSubdomainAvailability = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z.object({ subdomain: z.string(), shopId: z.string().optional() }).parse(raw)
   )
   .handler(async ({ context, data }) => {
@@ -114,7 +126,7 @@ async function getPlanModules(
 
 export const listShops = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z
       .object({
         search: z.string().optional(),
@@ -156,7 +168,7 @@ export const listShops = createServerFn({ method: "GET" })
 
 export const getShop = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
+  .validator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
   .handler(async ({ context, data }) => {
     await requireAdmin(context.supabase, context.userId);
     const { data: shop, error } = await context.supabase
@@ -182,17 +194,7 @@ export const getShop = createServerFn({ method: "GET" })
       .limit(50);
 
     // Prefer the direct column; fall back to audit log for legacy records; then default to 'admin'
-    const currentPassword =
-      (shop as any).odoo_admin_password ||
-      (() => {
-        const entry = (activity ?? []).find((a: any) => {
-          const st = a.after_state as any;
-          return st && typeof st.admin_password === "string" && st.admin_password.length > 0;
-        });
-        return entry ? (entry.after_state as any).admin_password : "admin";
-      })();
-
-    return { shop, activity: activity ?? [], currentPassword };
+    return { shop, activity: activity ?? [], currentPassword: undefined };
   });
 
 
@@ -202,7 +204,7 @@ export const getShop = createServerFn({ method: "GET" })
 
 export const createShop = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) => createShopSchema.parse(raw))
+  .validator((raw: unknown) => createShopSchema.parse(raw))
   .handler(async ({ context, data }) => {
     console.log("🔥 PROVISIONING STARTED", data.business_name);
     const actor = await requireRole(context.supabase, context.userId, ["super_admin"]);
@@ -232,13 +234,12 @@ export const createShop = createServerFn({ method: "POST" })
     const odooDbName = generateDbName(subdomain);
 
 
-    // Determine admin credentials for this shop's Odoo instance
-    // Use owner email if provided, else generate from business name
+    // Determine first-login credentials for this shop's Odoo instance.
+    // The password is returned once to the operator and never stored.
     const ownerEmail = data.email ?? `admin@${subdomain}.kshetra.app`;
-    const ownerPassword = data.admin_password || "admin"; // Use provided password or default to 'admin'
+    const ownerPassword = data.admin_password || generateTemporaryPassword();
 
-    // Insert shop into Supabase with provisioning_status = 'provisioning'
-    // Store admin credentials directly so the panel can always display/reset them.
+    // Insert shop into Supabase with provisioning_status = 'provisioning'.
     const { data: created, error } = await context.supabase
       .from("shops")
       .insert({
@@ -256,10 +257,11 @@ export const createShop = createServerFn({ method: "POST" })
         provisioning_status: "provisioning",
         odoo_db_name: odooDbName,
         odoo_admin_email: ownerEmail,
-        odoo_admin_password: ownerPassword,
         trial_ends_at: trialEndsAt,
         // Feature 1: store the chosen business type for future reference
         business_type_slug: data.business_type_slug ?? null,
+        // Password is returned once to the operator and never stored.
+        odoo_admin_password: null,
       } as any)
       .select()
       .single();
@@ -271,7 +273,7 @@ export const createShop = createServerFn({ method: "POST" })
       entityType: "shop",
       entityId: created.id,
       action: "shop.created",
-      after: { ...created, admin_password: ownerPassword },
+      after: redactSensitive(created as any),
     });
     await writeAudit(context.supabase, {
       actor: { id: actor.id, email: actor.email },
@@ -279,7 +281,7 @@ export const createShop = createServerFn({ method: "POST" })
       entityType: "shop",
       entityId: created.id,
       action: "provisioning.queued",
-      after: { odoo_db_name: odooDbName, admin_password: ownerPassword },
+      after: { odoo_db_name: odooDbName, owner_login: ownerEmail, temporary_password_generated: true },
     });
 
     // Fetch modules for the assigned plan
@@ -303,7 +305,11 @@ export const createShop = createServerFn({ method: "POST" })
       console.error("🔥 FATAL: runProvisioningAsync threw an unhandled error:", err);
     });
 
-    return created;
+    return {
+      ...created,
+      initial_owner_login: ownerEmail,
+      initial_owner_password: ownerPassword,
+    };
   });
 
 /** Non-blocking provisioning runner — updates Supabase when done */
@@ -358,7 +364,7 @@ async function runProvisioningAsync(
 
 export const updateShop = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -401,7 +407,7 @@ export const updateShop = createServerFn({ method: "POST" })
 
 export const changeShopPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z.object({ id: z.string().uuid(), plan_id: z.string().uuid() }).parse(raw),
   )
   .handler(async ({ context, data }) => {
@@ -471,7 +477,7 @@ export const changeShopPlan = createServerFn({ method: "POST" })
 
 export const suspendShop = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z.object({ id: z.string().uuid(), reason: z.string().optional() }).parse(raw),
   )
   .handler(async ({ context, data }) => {
@@ -525,7 +531,7 @@ export const suspendShop = createServerFn({ method: "POST" })
 
 export const reactivateShop = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
+  .validator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
   .handler(async ({ context, data }) => {
     const actor = await requireRole(context.supabase, context.userId, ["super_admin"]);
 
@@ -576,7 +582,7 @@ export const reactivateShop = createServerFn({ method: "POST" })
 
 export const deleteShop = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z.object({ id: z.string().uuid(), confirmName: z.string() }).parse(raw),
   )
   .handler(async ({ context, data }) => {
@@ -618,13 +624,13 @@ export const deleteShop = createServerFn({ method: "POST" })
 
 export const retryProvisioning = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
+  .validator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
   .handler(async ({ context, data }) => {
     const actor = await requireRole(context.supabase, context.userId, ["super_admin"]);
 
     const { data: shop } = await context.supabase
       .from("shops")
-      .select("odoo_db_name, plan_id, email, subdomain, business_name, odoo_admin_password")
+      .select("*")
       .eq("id", data.id)
       .maybeSingle();
     if (!shop) throw new Error("Shop not found");
@@ -649,7 +655,7 @@ export const retryProvisioning = createServerFn({ method: "POST" })
     // Re-run provisioning
     const moduleNames = await getPlanModules(context.supabase, shop.plan_id);
     const ownerEmail = shop.email ?? `admin@${shop.subdomain}.kshetra.app`;
-    const ownerPassword = shop.odoo_admin_password || "admin";
+    const ownerPassword = generateTemporaryPassword();
 
     // Use existing db name if we already have one, else generate new
     const odooDbName = shop.odoo_db_name ?? generateDbName(shop.subdomain ?? shop.business_name);
@@ -662,6 +668,7 @@ export const retryProvisioning = createServerFn({ method: "POST" })
       ownerPassword,
       moduleNames,
       actor,
+      (shop as any).business_type_slug ?? undefined,
     );
 
     return { ok: true };
@@ -673,7 +680,7 @@ export const retryProvisioning = createServerFn({ method: "POST" })
 
 export const markProvisioningResult = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) =>
+  .validator((raw: unknown) =>
     z
       .object({
         id: z.string().uuid(),

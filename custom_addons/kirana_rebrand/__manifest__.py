@@ -32,13 +32,25 @@
         at runtime so they can be changed without code modifications.
     """,
     'author': 'Kirana Platform',
-    'depends': ['web', 'point_of_sale', 'stock', 'barcodes_generator_product', 'stock_picking_product_barcode_report'],  # point_of_sale for pos_simplify.xml, stock for products_simplify.xml; OCA barcode modules for barcode generation and label printing
+    # barcodes_generator_product is a REAL dependency: data/barcode_rule_data.xml
+    # writes barcode.rule.generate_model = 'product.product', a selection value
+    # that module adds — the field wouldn't exist without it.
+    # stock_picking_product_barcode_report was listed here too but nothing in
+    # this module references it; removed — an unmet "depends" entry fails the
+    # ENTIRE module (all debranding included) to load on any shop that doesn't
+    # have it installed, not just the barcode-label feature. Found live: this
+    # exact failure was silently breaking kirana_rebrand (full Odoo branding
+    # exposed) on several already-provisioned shops that predate these OCA
+    # barcode modules being added to the standard install set.
+    'depends': ['web', 'point_of_sale', 'stock', 'barcodes_generator_product'],
     'data': [
         'views/assets.xml',
         'views/pos_simplify.xml',
+        'views/pos_partner_quickform.xml',
         'views/products_simplify.xml',
         'views/inventory_simplify.xml',
         'data/ir_config_parameter.xml',
+        'data/barcode_rule_data.xml',
     ],
     'assets': {
         'web.assets_backend': [
@@ -49,7 +61,8 @@
         'point_of_sale.assets_prod': [
             'kirana_rebrand/static/src/css/rebrand.css',  # branding CSS (debranding + POS simplification)
             'kirana_rebrand/static/src/js/rebrand.js',   # title/favicon/text patcher
-            'kirana_rebrand/static/src/xml/rebrand.xml', # OWL component overrides (OdooLogo fix)
+            'kirana_rebrand/static/src/js/pos_partner_quickcreate.js',  # one-tap "create customer from search" patch
+            'kirana_rebrand/static/src/xml/rebrand.xml', # OWL component overrides (OdooLogo fix, Backend relabel, quick-create button)
         ],
     },
     'installable': True,

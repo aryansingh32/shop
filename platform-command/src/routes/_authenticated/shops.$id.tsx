@@ -933,7 +933,7 @@ function ChangeUserPasswordDialog({ shopId, userId, login }: { shopId: string; u
               id={`pwd-${userId}`}
               required
               type="text"
-              placeholder="e.g. admin123"
+              placeholder="Enter a new temporary password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Fix: barcode generation was completely non-functional out of the box.
+
+    The OCA barcodes_generator_product module adds the "Barcode Rule" field
+    and "Generate Barcode" button to every product, but Odoo ships zero
+    barcode.rule records with generate_model = 'product.product' — so the
+    Barcode Rule dropdown has nothing to select and the Generate Barcode
+    button (invisible until a rule is picked) can never appear.
+
+    Odoo's own default "Product Barcodes" rule (barcodes.barcode_rule_product)
+    can't be reused for generation either: its pattern is ".*" (a catch-all
+    for *recognizing* scanned barcodes, not a generation template), and its
+    encoding is "any" — which is not a real barcode symbology in the
+    python-barcode library actually installed (see Dockerfile.odoo); calling
+    get_barcode_class('any') raises BarcodeNotFoundError. Reusing it would
+    still crash on click.
+
+    This record is a separate, purpose-built generation rule:
+      - encoding 'ean13' is a real, correctly-handled symbology.
+      - pattern '20..........' = the GS1-reserved internal/in-store prefix
+        "20" (the 200-299 range is reserved for internal company use, never
+        assigned to a real product by GS1) followed by 10 sequence digits.
+        python-barcode's EAN13 class takes exactly 12 digits and computes
+        the 13th check digit itself — verified end-to-end against the
+        actual barcode library before writing this file.
+      - generate_type 'sequence' with no sequence_id set: Odoo's own
+        barcode.rule.create()/write() auto-creates the backing ir.sequence,
+        so no separate sequence record is needed here.
+-->
+<odoo noupdate="0">
+    <record id="kirana_barcode_rule_product_generate" model="barcode.rule">
+        <field name="name">Kirana — Auto-generated Product Barcode</field>
+        <field name="sequence">10</field>
+        <field name="type">product</field>
+        <field name="encoding">ean13</field>
+        <field name="pattern">20..........</field>
+        <field name="generate_model">product.product</field>
+        <field name="generate_type">sequence</field>
+    </record>
+</odoo>

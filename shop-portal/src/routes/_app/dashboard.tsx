@@ -173,7 +173,7 @@ function HomePage() {
           {shop.business_name}
           {plan && (
             <span style={{ marginLeft: "0.625rem", color: "var(--color-foreground-subtle)", fontSize: "0.875rem" }}>
-              · {plan.name} plan
+              · {plan.name} plan{isTrial ? " (trial)" : ""}
             </span>
           )}
         </p>

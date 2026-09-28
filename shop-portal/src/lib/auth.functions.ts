@@ -110,8 +110,11 @@ export const loginFn = createServerFn({ method: "POST" })
       authResult = await odooSessionAuthenticate(db, data.login, data.password);
     } catch (err) {
       console.error("[loginFn] Odoo auth failed:", err);
+      const msg = err instanceof Error ? err.message : String(err);
       throw new Error(
-        err instanceof Error && err.message.includes("password")
+        msg.toLowerCase().includes("password") ||
+        msg.toLowerCase().includes("invalid email") ||
+        msg.toLowerCase().includes("access denied")
           ? "Invalid email or password."
           : "Login failed. Please try again."
       );
